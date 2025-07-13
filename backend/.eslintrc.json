@@ -1,0 +1,198 @@
+{
+  "env": {
+    "es6": true,
+    "node": true,
+    "jest": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "@typescript-eslint/recommended",
+    "@typescript-eslint/recommended-requiring-type-checking",
+    "plugin:security/recommended",
+    "prettier"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": [
+    "@typescript-eslint",
+    "security"
+  ],
+  "rules": {
+    // ================================
+    // REGRAS DE SEGURANÇA CRÍTICAS
+    // ================================
+    "security/detect-object-injection": "error",
+    "security/detect-non-literal-regexp": "error",
+    "security/detect-unsafe-regex": "error",
+    "security/detect-buffer-noassert": "error",
+    "security/detect-child-process": "error",
+    "security/detect-disable-mustache-escape": "error",
+    "security/detect-eval-with-expression": "error",
+    "security/detect-no-csrf-before-method-override": "error",
+    "security/detect-non-literal-fs-filename": "error",
+    "security/detect-non-literal-require": "error",
+    "security/detect-possible-timing-attacks": "error",
+    "security/detect-pseudoRandomBytes": "error",
+    "security/detect-bidi-characters": "error",
+    
+    // ================================
+    // TYPESCRIPT REGRAS DE SEGURANÇA
+    // ================================
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unsafe-assignment": "error",
+    "@typescript-eslint/no-unsafe-call": "error",
+    "@typescript-eslint/no-unsafe-member-access": "error",
+    "@typescript-eslint/no-unsafe-return": "error",
+    "@typescript-eslint/no-unsafe-argument": "error",
+    "@typescript-eslint/restrict-template-expressions": "error",
+    "@typescript-eslint/no-non-null-assertion": "error",
+    "@typescript-eslint/prefer-nullish-coalescing": "error",
+    "@typescript-eslint/prefer-optional-chain": "error",
+    
+    // ================================
+    // REGRAS GERAIS DE SEGURANÇA
+    // ================================
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-script-url": "error",
+    "no-octal": "error",
+    "no-octal-escape": "error",
+    "no-proto": "error",
+    "no-caller": "error",
+    "no-extend-native": "error",
+    "no-extra-bind": "error",
+    "no-iterator": "error",
+    "no-labels": "error",
+    "no-lone-blocks": "error",
+    "no-multi-str": "error",
+    "no-new-wrappers": "error",
+    "no-return-assign": "error",
+    "no-sequences": "error",
+    "no-throw-literal": "error",
+    "no-with": "error",
+    
+    // ================================
+    // PREVENÇÃO DE VAZAMENTOS
+    // ================================
+    "no-console": "warn",
+    "no-debugger": "error",
+    "no-alert": "error",
+    
+    // ================================
+    // BOAS PRÁTICAS DE CODIFICAÇÃO
+    // ================================
+    "consistent-return": "error",
+    "curly": "error",
+    "default-case": "error",
+    "dot-notation": "error",
+    "eqeqeq": ["error", "always"],
+    "guard-for-in": "error",
+    "no-div-regex": "error",
+    "no-else-return": "error",
+    "no-empty-function": "error",
+    "no-eq-null": "error",
+    "no-floating-decimal": "error",
+    "no-magic-numbers": ["warn", { 
+      "ignore": [-1, 0, 1, 2, 100, 200, 201, 400, 401, 403, 404, 500],
+      "ignoreArrayIndexes": true,
+      "ignoreDefaultValues": true
+    }],
+    "no-param-reassign": "error",
+    "no-redeclare": "error",
+    "no-self-compare": "error",
+    "no-unused-expressions": "error",
+    "no-useless-call": "error",
+    "no-useless-concat": "error",
+    "radix": "error",
+    "wrap-iife": "error",
+    "yoda": "error",
+    
+    // ================================
+    // REGRAS DE VARIÁVEIS
+    // ================================
+    "no-delete-var": "error",
+    "no-shadow": "off",
+    "@typescript-eslint/no-shadow": "error",
+    "no-shadow-restricted-names": "error",
+    "no-undef-init": "error",
+    "no-undefined": "error",
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": ["error", { 
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    "no-use-before-define": "off",
+    "@typescript-eslint/no-use-before-define": "error",
+    
+    // ================================
+    // REGRAS DE ESTILO PARA SEGURANÇA
+    // ================================
+    "array-callback-return": "error",
+    "block-scoped-var": "error",
+    "complexity": ["warn", 10],
+    "max-depth": ["warn", 4],
+    "max-lines": ["warn", 300],
+    "max-lines-per-function": ["warn", 50],
+    "max-nested-callbacks": ["warn", 3],
+    "max-params": ["warn", 4],
+    "no-mixed-operators": "error",
+    "no-nested-ternary": "error",
+    "no-unneeded-ternary": "error",
+    
+    // ================================
+    // ASYNC/AWAIT SEGURANÇA
+    // ================================
+    "require-atomic-updates": "error",
+    "no-async-promise-executor": "error",
+    "no-await-in-loop": "warn",
+    "no-promise-executor-return": "error",
+    "prefer-promise-reject-errors": "error",
+    
+    // ================================
+    // REGRAS ESPECÍFICAS PARA NODE.JS
+    // ================================
+    "callback-return": "error",
+    "global-require": "error",
+    "handle-callback-err": "error",
+    "no-buffer-constructor": "error",
+    "no-mixed-requires": "error",
+    "no-new-require": "error",
+    "no-path-concat": "error",
+    "no-process-env": "warn",
+    "no-process-exit": "error",
+    "no-sync": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.spec.ts"],
+      "env": {
+        "jest": true
+      },
+      "rules": {
+        "no-magic-numbers": "off",
+        "@typescript-eslint/no-unsafe-assignment": "off",
+        "@typescript-eslint/no-unsafe-member-access": "off",
+        "security/detect-object-injection": "off"
+      }
+    },
+    {
+      "files": ["scripts/**/*.js"],
+      "rules": {
+        "no-console": "off",
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    }
+  ],
+  "settings": {
+    "security": {
+      "detect-child-process": {
+        "allowedModules": ["child_process"]
+      }
+    }
+  }
+}

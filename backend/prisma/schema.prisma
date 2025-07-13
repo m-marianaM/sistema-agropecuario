@@ -38,6 +38,43 @@ model Usuario {
   @@map("usuarios")
 }
 
+// Modelo User para compatibilidade com sistema de segurança
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  password        String
+  name            String?
+  role            String          @default("user") // "admin", "user", "supervisor"
+  permissions     String?         // JSON string com array de permissões
+  status          String          @default("active") // "active", "inactive", "blocked"
+  
+  // Configurações de MFA
+  mfaEnabled      Boolean         @default(false)
+  mfaSecret       String?
+  mfaBackupCodes  String?         // JSON string com array de códigos backup
+  
+  // Tokens de refresh
+  refreshTokens   RefreshToken[]
+  
+  // Auditoria
+  lastLogin       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  
+  @@map("refresh_tokens")
+}
+
 model Fazenda {
   id                Int           @id @default(autoincrement())
   nome              String

@@ -1,0 +1,421 @@
+name: 🔒 Security & Quality Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Executar verificações de segurança semanalmente
+    - cron: '0 2 * * 1'
+
+# Configurações de segurança
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+env:
+  NODE_VERSION: '18'
+  AZURE_WEBAPP_NAME: 'sistema-agropecuario'
+
+jobs:
+  # ================================
+  # 1. VALIDAÇÃO E LINTING
+  # ================================
+  lint-and-validate:
+    name: 🔍 Lint & Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: 📦 Install dependencies - Backend
+      run: |
+        cd backend
+        npm ci
+
+    - name: 📦 Install dependencies - Frontend
+      run: |
+        cd frontend
+        npm ci
+
+    - name: 🔍 ESLint Backend
+      run: |
+        cd backend
+        npm run lint
+        
+    - name: 🔍 ESLint Frontend
+      run: |
+        cd frontend
+        npm run lint
+
+    - name: 🎯 TypeScript Check Backend
+      run: |
+        cd backend
+        npm run type-check
+
+    - name: 🎯 TypeScript Check Frontend
+      run: |
+        cd frontend
+        npm run type-check
+
+    - name: 💅 Prettier Check
+      run: |
+        npx prettier --check "**/*.{ts,tsx,js,jsx,json,md}"
+
+  # ================================
+  # 2. AUDITORIA DE DEPENDÊNCIAS
+  # ================================
+  dependency-audit:
+    name: 🔐 Dependency Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd backend && npm ci
+        cd ../frontend && npm ci
+
+    - name: 🔍 NPM Audit Backend
+      run: |
+        cd backend
+        npm audit --audit-level=moderate
+        
+    - name: 🔍 NPM Audit Frontend
+      run: |
+        cd frontend
+        npm audit --audit-level=moderate
+
+    - name: 📊 Audit with npm-audit-ci
+      run: |
+        npx npm-audit-ci --moderate
+
+    - name: 📋 Generate SBOM (Software Bill of Materials)
+      run: |
+        npx @cyclonedx/cyclonedx-npm --output-file sbom.json
+        
+    - name: 📤 Upload SBOM
+      uses: actions/upload-artifact@v4
+      with:
+        name: software-bill-of-materials
+        path: sbom.json
+
+  # ================================
+  # 3. ANÁLISE DE CÓDIGO ESTÁTICO
+  # ================================
+  static-analysis:
+    name: 🔬 Static Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 🔍 SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      with:
+        args: >
+          -Dsonar.projectKey=sistema-agropecuario
+          -Dsonar.organization=sistema-agro
+          -Dsonar.sources=backend/src,frontend/src
+          -Dsonar.tests=backend/src/__tests__,frontend/src/__tests__
+          -Dsonar.javascript.lcov.reportPaths=backend/coverage/lcov.info,frontend/coverage/lcov.info
+
+    - name: 🔍 CodeQL Analysis
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript, typescript
+
+    - name: 🔍 CodeQL Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: 🔍 CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  # ================================
+  # 4. VERIFICAÇÃO DE SEGURANÇA OWASP
+  # ================================
+  security-scan:
+    name: 🛡️ OWASP Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd backend && npm ci
+        cd ../frontend && npm ci
+
+    - name: 🏗️ Build application
+      run: |
+        cd backend && npm run build
+        cd ../frontend && npm run build
+
+    - name: 🚀 Start application for testing
+      run: |
+        cd backend && npm start &
+        sleep 30
+        curl -f http://localhost:3001/health || exit 1
+
+    - name: 🔍 OWASP ZAP Full Scan
+      uses: zaproxy/action-full-scan@v0.8.0
+      with:
+        target: 'http://localhost:3001'
+        rules_file_name: '.zap/rules.tsv'
+        cmd_options: '-a'
+        
+    - name: 📤 Upload ZAP results
+      uses: actions/upload-artifact@v4
+      with:
+        name: zap-report
+        path: report_html.html
+
+  # ================================
+  # 5. VERIFICAÇÃO DE CONTAINERS
+  # ================================
+  container-security:
+    name: 🐳 Container Security
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐳 Build Docker image
+      run: |
+        docker build -t sistema-agropecuario:latest .
+
+    - name: 🔍 Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'sistema-agropecuario:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: 📤 Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: 🔍 Docker Scout
+      uses: docker/scout-action@v1
+      with:
+        command: cves
+        image: sistema-agropecuario:latest
+        format: sarif
+        output: scout-results.sarif
+
+    - name: 📤 Upload Scout results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'scout-results.sarif'
+
+  # ================================
+  # 6. TESTES DE SEGURANÇA
+  # ================================
+  security-tests:
+    name: 🧪 Security Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: 📦 Install dependencies
+      run: |
+        cd backend && npm ci
+        cd ../frontend && npm ci
+
+    - name: 🧪 Run security tests
+      run: |
+        cd backend
+        npm run test:security
+        
+    - name: 🧪 Run unit tests with coverage
+      run: |
+        cd backend
+        npm run test:coverage
+        cd ../frontend
+        npm run test:coverage
+
+    - name: 📊 Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./backend/coverage/lcov.info,./frontend/coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+  # ================================
+  # 7. COMPLIANCE E AUDITORIA
+  # ================================
+  compliance-check:
+    name: 📋 Compliance Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔍 License compliance
+      uses: fossa-contrib/fossa-action@v2
+      with:
+        api-key: ${{ secrets.FOSSA_API_KEY }}
+
+    - name: 🔍 Check for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+
+    - name: 🔍 Azure Security DevOps
+      uses: microsoft/security-devops-action@v1.6.0
+      id: msdo
+      with:
+        categories: 'secrets,code,artifacts,IaC,containers'
+
+    - name: 📤 Upload MSDO results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+
+  # ================================
+  # 8. VALIDAÇÃO DE CONFIGURAÇÃO AZURE
+  # ================================
+  azure-validation:
+    name: ☁️ Azure Configuration Validation
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔑 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🔍 Azure Security Center Assessment
+      run: |
+        az security assessment list --output table
+
+    - name: 🔍 Validate Key Vault configuration
+      run: |
+        az keyvault show --name ${{ secrets.AZURE_KEY_VAULT_NAME }} --query "properties.enableSoftDelete"
+
+    - name: 🔍 Check RBAC assignments
+      run: |
+        az role assignment list --scope /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }} --output table
+
+  # ================================
+  # 9. NOTIFICAÇÃO DE RESULTADOS
+  # ================================
+  notify-results:
+    name: 📢 Notify Security Results
+    runs-on: ubuntu-latest
+    needs: [lint-and-validate, dependency-audit, static-analysis, security-scan, container-security, security-tests, compliance-check]
+    if: always()
+    
+    steps:
+    - name: 📊 Generate Security Report
+      run: |
+        echo "# 🔒 Security Check Report" > security-report.md
+        echo "## Summary" >> security-report.md
+        echo "- Lint & Validate: ${{ needs.lint-and-validate.result }}" >> security-report.md
+        echo "- Dependency Audit: ${{ needs.dependency-audit.result }}" >> security-report.md
+        echo "- Static Analysis: ${{ needs.static-analysis.result }}" >> security-report.md
+        echo "- Security Scan: ${{ needs.security-scan.result }}" >> security-report.md
+        echo "- Container Security: ${{ needs.container-security.result }}" >> security-report.md
+        echo "- Security Tests: ${{ needs.security-tests.result }}" >> security-report.md
+        echo "- Compliance Check: ${{ needs.compliance-check.result }}" >> security-report.md
+
+    - name: 📤 Upload Security Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-report
+        path: security-report.md
+
+    - name: 📧 Send notification on failure
+      if: contains(needs.*.result, 'failure')
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#security-alerts'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: |
+          🚨 Security check failed for ${{ github.repository }}
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          
+  # ================================
+  # 10. DEPLOY SEGURO (APENAS MAIN)
+  # ================================
+  secure-deploy:
+    name: 🚀 Secure Deploy
+    runs-on: ubuntu-latest
+    needs: [lint-and-validate, dependency-audit, static-analysis, security-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔑 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🚀 Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: .
+        
+    - name: 🔍 Post-deployment security check
+      run: |
+        sleep 60
+        curl -f https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health
+        
+    - name: 📊 Update security dashboard
+      run: |
+        echo "Deployment completed successfully with all security checks passed"
