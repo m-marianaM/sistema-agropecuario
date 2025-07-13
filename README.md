@@ -246,15 +246,7 @@ http://localhost:3001/api-docs
 
 Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para detalhes.
 
-## 👥 Equipe de Desenvolvimento
 
-- **Desenvolvedor Principal**: Sistema Agro Team
-- **Email**: admin@systemagro.com
-
-## 📞 Suporte
-
-Para suporte técnico ou dúvidas sobre o sistema:
-- Email: suporte@systemagro.com
 - Documentação: [Link para documentação completa]
 
 ## 🔄 Versionamento
