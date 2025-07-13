@@ -56,7 +56,7 @@ O **Sistema Agropecuário** é uma aplicação web moderna e completa para gest�
 
 ### 1. Clone o Repositório
 ```bash
-git clone https://github.com/seu-usuario/sistema-agropecuario.git
+git clone https://github.com/m-marianaM/sistema-agropecuario.git
 cd sistema-agropecuario
 ```
 
