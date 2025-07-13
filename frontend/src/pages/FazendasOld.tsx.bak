@@ -1,0 +1,2374 @@
+/**
+ * Página de Gestão de Fazendas - Sistema Agropecuário
+ * Gestão completa de fazendas e funcionários
+ */
+
+import React, { useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
+import { useFazendas, Fazenda, Funcionario, Permissao } from '../context/FazendasContext';
+import { 
+  MapPin,
+  Plus,
+  Edit3,
+  Trash2,
+  Users,
+  User,
+  Shield,
+  UserCheck,
+  Calendar,
+  Activity,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  AlertCircle,
+  CheckCircle,
+  Settings
+} from 'lucide-react';
+
+interface NovoFuncionario {
+  nome: string;
+  email: string;
+  cargo: 'administrador' | 'peao' | 'supervisor';
+  salario: number;
+  telefone: string;
+  cpf: string;
+  endereco: string;
+  fazendaId: number;
+}
+
+// Função para obter permissões padrão baseadas no cargo
+const getPermissoesPadrao = (cargo: string): Permissao[] => {
+  const modulos = ['produtos', 'financeiro', 'cultivos', 'racao', 'vendas'];
+  
+  switch (cargo) {
+    case 'administrador':
+      return modulos.map(modulo => ({
+        modulo,
+        ler: true,
+        criar: true,
+        editar: true,
+        deletar: true
+      }));
+    
+    case 'supervisor':
+      return modulos.map(modulo => ({
+        modulo,
+        ler: true,
+        criar: modulo !== 'financeiro',
+        editar: modulo !== 'financeiro',
+        deletar: false
+      }));
+    
+    case 'peao':
+      return modulos.map(modulo => ({
+        modulo,
+        ler: modulo === 'cultivos' || modulo === 'racao',
+        criar: modulo === 'cultivos' || modulo === 'racao',
+        editar: false,
+        deletar: false
+      }));
+    
+    default:
+      return modulos.map(modulo => ({
+        modulo,
+        ler: false,
+        criar: false,
+        editar: false,
+        deletar: false
+      }));
+  }
+};
+
+interface Fazenda {
+  id: number;
+  nome: string;
+  area: number;
+  status: 'ativa' | 'inativa' | 'manutencao';
+  cultivos: string[];
+  endereco: {
+    rua?: string;
+    cidade: string;
+    estado: string;
+    cep: string;
+  };
+  proprietario: string;
+  telefone?: string;
+  email?: string;
+  dataAquisicao: string;
+  valorCompra: number;
+  funcionarios: Funcionario[];
+  producaoAnual: number;
+  custoOperacional: number;
+  realizaRacao?: boolean;
+  realizaNutricao?: boolean;
+}
+
+// Dados simulados
+const fazendasData: Fazenda[] = [
+  {
+    id: 1,
+    nome: 'Fazenda Central',
+    area: 450,
+    status: 'ativa',
+    cultivos: ['Milho', 'Soja'],
+    endereco: { cidade: 'Goiânia', estado: 'GO', cep: '74000-000' },
+    proprietario: 'João Silva',
+    dataAquisicao: '2020-03-15',
+    valorCompra: 2500000,
+    producaoAnual: 1200,
+    custoOperacional: 180000,
+    funcionarios: [
+      {
+        id: 1,
+        nome: 'Carlos Santos',
+        email: 'carlos@fazenda.com',
+        cargo: 'administrador',
+        dataContratacao: '2020-04-01',
+        salario: 8500,
+        status: 'ativo',
+        telefone: '(62) 99999-0001',
+        fazendaId: 1,
+        cpf: '123.456.789-01',
+        endereco: 'Rua das Flores, 123 - Goiânia/GO',
+        permissoes: getPermissoesPadrao('administrador')
+      },
+      {
+        id: 2,
+        nome: 'Maria Oliveira',
+        email: 'maria@fazenda.com',
+        cargo: 'supervisor',
+        dataContratacao: '2021-02-10',
+        salario: 5500,
+        status: 'ativo',
+        telefone: '(62) 99999-0002',
+        fazendaId: 1,
+        cpf: '234.567.890-12',
+        endereco: 'Av. Principal, 456 - Goiânia/GO',
+        permissoes: getPermissoesPadrao('supervisor')
+      },
+      {
+        id: 3,
+        nome: 'José Pereira',
+        email: 'jose@fazenda.com',
+        cargo: 'peao',
+        dataContratacao: '2021-08-15',
+        salario: 2800,
+        status: 'ativo',
+        telefone: '(62) 99999-0003',
+        fazendaId: 1,
+        cpf: '345.678.901-23',
+        endereco: 'Rua do Campo, 789 - Goiânia/GO',
+        permissoes: getPermissoesPadrao('peao')
+      }
+    ]
+  },
+  {
+    id: 2,
+    nome: 'Sítio Esperança',
+    area: 280,
+    status: 'ativa',
+    cultivos: ['Milho'],
+    endereco: { cidade: 'Anápolis', estado: 'GO', cep: '75000-000' },
+    proprietario: 'Ana Costa',
+    dataAquisicao: '2019-11-20',
+    valorCompra: 1800000,
+    producaoAnual: 850,
+    custoOperacional: 125000,
+    funcionarios: [
+      {
+        id: 4,
+        nome: 'Roberto Lima',
+        email: 'roberto@sitio.com',
+        cargo: 'administrador',
+        dataContratacao: '2020-01-05',
+        salario: 7500,
+        status: 'ativo',
+        telefone: '(62) 99999-0004',
+        fazendaId: 2,
+        cpf: '456.789.012-34',
+        endereco: 'Fazenda Esperança, Zona Rural - Anápolis/GO',
+        permissoes: getPermissoesPadrao('administrador')
+      },
+      {
+        id: 5,
+        nome: 'Pedro Alves',
+        email: 'pedro@sitio.com',
+        cargo: 'peao',
+        dataContratacao: '2021-05-12',
+        salario: 2600,
+        status: 'ativo',
+        telefone: '(62) 99999-0005',
+        fazendaId: 2,
+        cpf: '567.890.123-45',
+        endereco: 'Vila Rural, 321 - Anápolis/GO',
+        permissoes: getPermissoesPadrao('peao')
+      }
+    ]
+  },
+  {
+    id: 3,
+    nome: 'Fazenda Norte',
+    area: 620,
+    status: 'ativa',
+    cultivos: ['Soja'],
+    endereco: { cidade: 'Rio Verde', estado: 'GO', cep: '75900-000' },
+    proprietario: 'Francisco Rocha',
+    dataAquisicao: '2018-07-10',
+    valorCompra: 3200000,
+    producaoAnual: 1850,
+    custoOperacional: 245000,
+    funcionarios: [
+      {
+        id: 6,
+        nome: 'Antonio Silva',
+        email: 'antonio@faznorte.com',
+        cargo: 'administrador',
+        dataContratacao: '2018-08-01',
+        salario: 9200,
+        status: 'ativo',
+        telefone: '(64) 99999-0006',
+        fazendaId: 3,
+        cpf: '678.901.234-56',
+        endereco: 'Fazenda Norte, Km 15 - Rio Verde/GO',
+        permissoes: getPermissoesPadrao('administrador')
+      },
+      {
+        id: 7,
+        nome: 'Luiz Fernando',
+        email: 'luiz@faznorte.com',
+        cargo: 'supervisor',
+        dataContratacao: '2019-03-15',
+        salario: 6000,
+        status: 'ativo',
+        telefone: '(64) 99999-0007',
+        fazendaId: 3,
+        cpf: '789.012.345-67',
+        endereco: 'Distrito Industrial, 987 - Rio Verde/GO',
+        permissoes: getPermissoesPadrao('supervisor')
+      },
+      {
+        id: 8,
+        nome: 'Marcos Souza',
+        email: 'marcos@faznorte.com',
+        cargo: 'peao',
+        dataContratacao: '2020-06-20',
+        salario: 3000,
+        status: 'ativo',
+        telefone: '(64) 99999-0008',
+        fazendaId: 3,
+        cpf: '890.123.456-78',
+        endereco: 'Setor Rural, 654 - Rio Verde/GO',
+        permissoes: getPermissoesPadrao('peao')
+      },
+      {
+        id: 9,
+        nome: 'Gabriel Costa',
+        email: 'gabriel@faznorte.com',
+        cargo: 'peao',
+        dataContratacao: '2021-01-10',
+        salario: 2900,
+        status: 'ativo',
+        telefone: '(64) 99999-0009',
+        fazendaId: 3,
+        cpf: '901.234.567-89',
+        endereco: 'Vila dos Trabalhadores, 147 - Rio Verde/GO',
+        permissoes: getPermissoesPadrao('peao')
+      }
+    ]
+  },
+  {
+    id: 4,
+    nome: 'Propriedade Sul',
+    area: 500,
+    status: 'manutencao',
+    cultivos: [],
+    endereco: { cidade: 'Catalão', estado: 'GO', cep: '75700-000' },
+    proprietario: 'Luiza Santos',
+    dataAquisicao: '2022-01-30',
+    valorCompra: 2800000,
+    producaoAnual: 0,
+    custoOperacional: 95000,
+    funcionarios: [
+      {
+        id: 10,
+        nome: 'Ricardo Oliveira',
+        email: 'ricardo@propsul.com',
+        cargo: 'supervisor',
+        dataContratacao: '2022-02-15',
+        salario: 5200,
+        status: 'ativo',
+        telefone: '(64) 99999-0010',
+        fazendaId: 4,
+        cpf: '012.345.678-90',
+        endereco: 'Propriedade Sul, Estrada Rural - Catalão/GO',
+        permissoes: getPermissoesPadrao('supervisor')
+      }
+    ]
+  }
+];
+
+const Fazendas: React.FC = () => {
+  const { isDark } = useTheme();
+  const { fazendas, setFazendas, adicionarFazenda, editarFazenda, removerFazenda } = useFazendas();
+  const [fazendaSelecionada, setFazendaSelecionada] = useState<Fazenda | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [modalFuncionario, setModalFuncionario] = useState(false);
+  const [funcionarioEditando, setFuncionarioEditando] = useState<Funcionario | null>(null);
+  const [editandoPermissoes, setEditandoPermissoes] = useState(false);
+  const [permissoesCustomizadas, setPermissoesCustomizadas] = useState<Permissao[]>([]);
+  const [modalPermissoes, setModalPermissoes] = useState(false);
+  const [funcionarioPermissoes, setFuncionarioPermissoes] = useState<Funcionario | null>(null);
+  const [fazendaEditando, setFazendaEditando] = useState<Fazenda | null>(null);
+  const [novaFazenda, setNovaFazenda] = useState({
+    nome: '',
+    endereco: {
+      rua: '',
+      cidade: '',
+      estado: '',
+      cep: ''
+    },
+    area: 0,
+    proprietario: '',
+    telefone: '',
+    email: '',
+    realizaRacao: false,
+    realizaNutricao: false
+  });
+  const [errosValidacaoFazenda, setErrosValidacaoFazenda] = useState<{[key: string]: string}>({});
+  const [filtroStatus, setFiltroStatus] = useState<string>('todas');
+  const [pesquisa, setPesquisa] = useState('');
+  const [novoFuncionario, setNovoFuncionario] = useState<NovoFuncionario>({
+    nome: '',
+    email: '',
+    cargo: 'peao',
+    salario: 0,
+    telefone: '',
+    cpf: '',
+    endereco: '',
+    fazendaId: 0
+  });
+  const [errosValidacao, setErrosValidacao] = useState<{[key: string]: string}>({});
+
+  // Função para validar CPF
+  const validarCPF = (cpf: string): boolean => {
+    const cpfNumeros = cpf.replace(/\D/g, '');
+    if (cpfNumeros.length !== 11 || /^(\d)\1{10}$/.test(cpfNumeros)) return false;
+    
+    let soma = 0;
+    for (let i = 0; i < 9; i++) {
+      soma += parseInt(cpfNumeros.charAt(i)) * (10 - i);
+    }
+    let resto = 11 - (soma % 11);
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(cpfNumeros.charAt(9))) return false;
+    
+    soma = 0;
+    for (let i = 0; i < 10; i++) {
+      soma += parseInt(cpfNumeros.charAt(i)) * (11 - i);
+    }
+    resto = 11 - (soma % 11);
+    if (resto === 10 || resto === 11) resto = 0;
+    return resto === parseInt(cpfNumeros.charAt(10));
+  };
+
+  // Função para validar email
+  const validarEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Formatação de CPF
+  const formatarCPF = (cpf: string): string => {
+    const numeros = cpf.replace(/\D/g, '');
+    return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  };
+
+  // Formatação de telefone
+  const formatarTelefone = (telefone: string): string => {
+    const numeros = telefone.replace(/\D/g, '');
+    if (numeros.length <= 10) {
+      return numeros.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    }
+    return numeros.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  };
+
+  // Função para validar formulário de fazenda
+  const validarFormularioFazenda = (): boolean => {
+    const erros: {[key: string]: string} = {};
+
+    if (!novaFazenda.nome.trim()) {
+      erros.nome = 'Nome da fazenda é obrigatório';
+    }
+
+    if (!novaFazenda.proprietario.trim()) {
+      erros.proprietario = 'Nome do proprietário é obrigatório';
+    }
+
+    if (novaFazenda.area <= 0) {
+      erros.area = 'Área deve ser maior que zero';
+    }
+
+    if (!novaFazenda.endereco.cidade.trim()) {
+      erros.cidade = 'Cidade é obrigatória';
+    }
+
+    if (!novaFazenda.endereco.estado.trim()) {
+      erros.estado = 'Estado é obrigatório';
+    }
+
+    if (!novaFazenda.endereco.cep.trim()) {
+      erros.cep = 'CEP é obrigatório';
+    }
+
+    if (novaFazenda.email && !validarEmail(novaFazenda.email)) {
+      erros.email = 'Email inválido';
+    }
+
+    setErrosValidacaoFazenda(erros);
+    return Object.keys(erros).length === 0;
+  };
+
+  // Função para salvar fazenda (criar ou editar)
+  const salvarFazenda = () => {
+    if (!validarFormularioFazenda()) {
+      return;
+    }
+
+    if (fazendaEditando) {
+      // Editando fazenda existente
+      const fazendaAtualizada: Fazenda = {
+        ...fazendaEditando,
+        nome: novaFazenda.nome,
+        proprietario: novaFazenda.proprietario,
+        area: novaFazenda.area,
+        endereco: {
+          rua: novaFazenda.endereco.rua,
+          cidade: novaFazenda.endereco.cidade,
+          estado: novaFazenda.endereco.estado,
+          cep: novaFazenda.endereco.cep
+        },
+        telefone: novaFazenda.telefone,
+        email: novaFazenda.email,
+        realizaRacao: novaFazenda.realizaRacao,
+        realizaNutricao: novaFazenda.realizaNutricao
+      };
+
+      const novasFazendas = fazendas.map(fazenda => 
+        fazenda.id === fazendaEditando.id ? fazendaAtualizada : fazenda
+      );
+
+      setFazendas(novasFazendas);
+      alert('Fazenda atualizada com sucesso!');
+    } else {
+      // Criando nova fazenda
+      const novoId = Math.max(...fazendas.map(f => f.id)) + 1;
+      
+      const fazendaCompleta: Fazenda = {
+        id: novoId,
+        nome: novaFazenda.nome,
+        proprietario: novaFazenda.proprietario,
+        area: novaFazenda.area,
+        status: 'ativa',
+        cultivos: [],
+        endereco: {
+          rua: novaFazenda.endereco.rua,
+          cidade: novaFazenda.endereco.cidade,
+          estado: novaFazenda.endereco.estado,
+          cep: novaFazenda.endereco.cep
+        },
+        telefone: novaFazenda.telefone,
+        email: novaFazenda.email,
+        dataAquisicao: new Date().toISOString().split('T')[0],
+        valorCompra: 0,
+        funcionarios: [],
+        producaoAnual: 0,
+        custoOperacional: 0,
+        realizaRacao: novaFazenda.realizaRacao,
+        realizaNutricao: novaFazenda.realizaNutricao
+      };
+
+      setFazendas([...fazendas, fazendaCompleta]);
+      alert('Fazenda cadastrada com sucesso!');
+    }
+
+    // Resetar formulário
+    setNovaFazenda({
+      nome: '',
+      endereco: {
+        rua: '',
+        cidade: '',
+        estado: '',
+        cep: ''
+      },
+      area: 0,
+      proprietario: '',
+      telefone: '',
+      email: '',
+      realizaRacao: false,
+      realizaNutricao: false
+    });
+    setErrosValidacaoFazenda({});
+    setFazendaEditando(null);
+    setModalAberto(false);
+  };
+
+  // Função para abrir modal de editar fazenda
+  const editarFazenda = (fazenda: Fazenda) => {
+    setNovaFazenda({
+      nome: fazenda.nome,
+      proprietario: fazenda.proprietario,
+      area: fazenda.area,
+      endereco: {
+        rua: fazenda.endereco.rua || '',
+        cidade: fazenda.endereco.cidade,
+        estado: fazenda.endereco.estado,
+        cep: fazenda.endereco.cep
+      },
+      telefone: fazenda.telefone || '',
+      email: fazenda.email || '',
+      realizaRacao: fazenda.realizaRacao || false,
+      realizaNutricao: fazenda.realizaNutricao || false
+    });
+    setFazendaEditando(fazenda);
+    setErrosValidacaoFazenda({});
+    setModalAberto(true);
+  };
+
+  // Função para abrir modal de nova fazenda
+  const abrirModalNovaFazenda = () => {
+    setNovaFazenda({
+      nome: '',
+      endereco: {
+        rua: '',
+        cidade: '',
+        estado: '',
+        cep: ''
+      },
+      area: 0,
+      proprietario: '',
+      telefone: '',
+      email: '',
+      realizaRacao: false,
+      realizaNutricao: false
+    });
+    setErrosValidacaoFazenda({});
+    setFazendaEditando(null);
+    setModalAberto(true);
+  };
+
+  // Função para validar formulário
+  const validarFormulario = (): boolean => {
+    const erros: {[key: string]: string} = {};
+
+    if (!novoFuncionario.nome.trim()) {
+      erros.nome = 'Nome é obrigatório';
+    }
+
+    if (!novoFuncionario.email.trim()) {
+      erros.email = 'Email é obrigatório';
+    } else if (!validarEmail(novoFuncionario.email)) {
+      erros.email = 'Email inválido';
+    }
+
+    if (!novoFuncionario.cpf.trim()) {
+      erros.cpf = 'CPF é obrigatório';
+    } else if (!validarCPF(novoFuncionario.cpf)) {
+      erros.cpf = 'CPF inválido';
+    }
+
+    if (!novoFuncionario.telefone.trim()) {
+      erros.telefone = 'Telefone é obrigatório';
+    } else {
+      const telefoneNumeros = novoFuncionario.telefone.replace(/\D/g, '');
+      if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
+        erros.telefone = 'Telefone deve ter 10 ou 11 dígitos';
+      }
+    }
+
+    if (novoFuncionario.salario <= 0) {
+      erros.salario = 'Salário deve ser maior que zero';
+    }
+
+    if (!novoFuncionario.endereco.trim()) {
+      erros.endereco = 'Endereço é obrigatório';
+    }
+
+    if (novoFuncionario.fazendaId === 0) {
+      erros.fazendaId = 'Selecione uma fazenda';
+    }
+
+    setErrosValidacao(erros);
+    return Object.keys(erros).length === 0;
+  };
+
+  // Função para cadastrar/editar funcionário
+  const salvarFuncionario = () => {
+    if (!validarFormulario()) {
+      return;
+    }
+
+    if (funcionarioEditando) {
+      // Editando funcionário existente
+      const funcionarioAtualizado: Funcionario = {
+        ...funcionarioEditando,
+        nome: novoFuncionario.nome,
+        email: novoFuncionario.email,
+        cargo: novoFuncionario.cargo,
+        salario: novoFuncionario.salario,
+        telefone: novoFuncionario.telefone,
+        cpf: novoFuncionario.cpf,
+        endereco: novoFuncionario.endereco,
+        fazendaId: novoFuncionario.fazendaId,
+        permissoes: [...permissoesCustomizadas]
+      };
+
+      const novasFazendas = fazendas.map(fazenda => ({
+        ...fazenda,
+        funcionarios: fazenda.funcionarios.map(func => 
+          func.id === funcionarioEditando.id ? funcionarioAtualizado : func
+        )
+      }));
+
+      setFazendas(novasFazendas);
+      
+      // Atualizar fazenda selecionada se necessário
+      if (fazendaSelecionada) {
+        const fazendaAtualizada = novasFazendas.find(f => f.id === fazendaSelecionada.id);
+        if (fazendaAtualizada) {
+          setFazendaSelecionada(fazendaAtualizada);
+        }
+      }
+
+      alert('Funcionário atualizado com sucesso!');
+    } else {
+      // Cadastrando novo funcionário
+      const novoId = Math.max(...fazendas.flatMap(f => f.funcionarios.map(func => func.id))) + 1;
+      
+      const funcionarioCompleto: Funcionario = {
+        id: novoId,
+        nome: novoFuncionario.nome,
+        email: novoFuncionario.email,
+        cargo: novoFuncionario.cargo,
+        dataContratacao: new Date().toISOString().split('T')[0],
+        salario: novoFuncionario.salario,
+        status: 'ativo',
+        telefone: novoFuncionario.telefone,
+        fazendaId: novoFuncionario.fazendaId,
+        cpf: novoFuncionario.cpf,
+        endereco: novoFuncionario.endereco,
+        permissoes: [...permissoesCustomizadas]
+      };
+
+      const novasFazendas = fazendas.map(fazenda => {
+        if (fazenda.id === novoFuncionario.fazendaId) {
+          return {
+            ...fazenda,
+            funcionarios: [...fazenda.funcionarios, funcionarioCompleto]
+          };
+        }
+        return fazenda;
+      });
+
+      setFazendas(novasFazendas);
+      
+      // Atualizar fazenda selecionada se for a mesma
+      if (fazendaSelecionada && fazendaSelecionada.id === novoFuncionario.fazendaId) {
+        const fazendaAtualizada = novasFazendas.find(f => f.id === fazendaSelecionada.id);
+        if (fazendaAtualizada) {
+          setFazendaSelecionada(fazendaAtualizada);
+        }
+      }
+
+      alert('Funcionário cadastrado com sucesso!');
+    }
+
+    // Resetar formulário
+    setNovoFuncionario({
+      nome: '',
+      email: '',
+      cargo: 'peao',
+      salario: 0,
+      telefone: '',
+      cpf: '',
+      endereco: '',
+      fazendaId: 0
+    });
+    setErrosValidacao({});
+    setFuncionarioEditando(null);
+    setEditandoPermissoes(false);
+    setPermissoesCustomizadas([]);
+    setModalFuncionario(false);
+  };
+
+  // Função para abrir modal de funcionário
+  const abrirModalFuncionario = (fazendaId?: number) => {
+    // Resetar formulário
+    setNovoFuncionario({
+      nome: '',
+      email: '',
+      cargo: 'peao',
+      salario: 0,
+      telefone: '',
+      cpf: '',
+      endereco: '',
+      fazendaId: fazendaId || 0
+    });
+    setErrosValidacao({});
+    setFuncionarioEditando(null);
+    setEditandoPermissoes(false);
+    setPermissoesCustomizadas(getPermissoesPadrao('peao'));
+    setModalFuncionario(true);
+  };
+
+  // Função para editar funcionário
+  const editarFuncionario = (funcionario: Funcionario) => {
+    setNovoFuncionario({
+      nome: funcionario.nome,
+      email: funcionario.email,
+      cargo: funcionario.cargo,
+      salario: funcionario.salario,
+      telefone: funcionario.telefone,
+      cpf: funcionario.cpf || '',
+      endereco: funcionario.endereco || '',
+      fazendaId: funcionario.fazendaId
+    });
+    setFuncionarioEditando(funcionario);
+    setPermissoesCustomizadas([...funcionario.permissoes]);
+    setEditandoPermissoes(false);
+    setErrosValidacao({});
+    setModalFuncionario(true);
+  };
+
+  // Função para alternar permissão específica
+  const alternarPermissao = (moduloIndex: number, tipo: 'ler' | 'criar' | 'editar' | 'deletar') => {
+    const novasPermissoes = [...permissoesCustomizadas];
+    novasPermissoes[moduloIndex] = {
+      ...novasPermissoes[moduloIndex],
+      [tipo]: !novasPermissoes[moduloIndex][tipo]
+    };
+    setPermissoesCustomizadas(novasPermissoes);
+  };
+
+  // Função para verificar se permissões são customizadas
+  const saoPermissoesCustomizadas = (funcionario: Funcionario): boolean => {
+    const permissoesPadrao = getPermissoesPadrao(funcionario.cargo);
+    return JSON.stringify(funcionario.permissoes) !== JSON.stringify(permissoesPadrao);
+  };
+
+  // Função para abrir modal específico de permissões
+  const abrirModalPermissoes = (funcionario: Funcionario) => {
+    setFuncionarioPermissoes(funcionario);
+    setPermissoesCustomizadas([...funcionario.permissoes]);
+    setModalPermissoes(true);
+  };
+
+  // Função para salvar apenas as permissões
+  const salvarPermissoes = () => {
+    if (!funcionarioPermissoes) return;
+
+    const novasFazendas = fazendas.map(fazenda => ({
+      ...fazenda,
+      funcionarios: fazenda.funcionarios.map(func => 
+        func.id === funcionarioPermissoes.id 
+          ? { ...func, permissoes: [...permissoesCustomizadas] }
+          : func
+      )
+    }));
+
+    setFazendas(novasFazendas);
+    
+    // Atualizar fazenda selecionada se necessário
+    if (fazendaSelecionada) {
+      const fazendaAtualizada = novasFazendas.find(f => f.id === fazendaSelecionada.id);
+      if (fazendaAtualizada) {
+        setFazendaSelecionada(fazendaAtualizada);
+      }
+    }
+
+    setModalPermissoes(false);
+    setFuncionarioPermissoes(null);
+    alert('Permissões atualizadas com sucesso!');
+  };
+
+  // Função para aplicar permissões padrão do cargo
+  const aplicarPermissoesPadrao = (cargo: 'administrador' | 'supervisor' | 'peao') => {
+    setPermissoesCustomizadas(getPermissoesPadrao(cargo));
+    setEditandoPermissoes(false);
+  };
+
+  // Função para excluir funcionário
+  const excluirFuncionario = (funcionario: Funcionario) => {
+    if (window.confirm(`Tem certeza que deseja excluir o funcionário ${funcionario.nome}?`)) {
+      const novasFazendas = fazendas.map(fazenda => ({
+        ...fazenda,
+        funcionarios: fazenda.funcionarios.filter(func => func.id !== funcionario.id)
+      }));
+
+      setFazendas(novasFazendas);
+      
+      // Atualizar fazenda selecionada se necessário
+      if (fazendaSelecionada) {
+        const fazendaAtualizada = novasFazendas.find(f => f.id === fazendaSelecionada.id);
+        if (fazendaAtualizada) {
+          setFazendaSelecionada(fazendaAtualizada);
+        }
+      }
+
+      alert('Funcionário excluído com sucesso!');
+    }
+  };
+
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      background: isDark 
+        ? 'linear-gradient(135deg, #111827 0%, #1f2937 100%)' 
+        : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      padding: '24px',
+      transition: 'background 0.3s ease'
+    },
+    header: {
+      marginBottom: '32px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap' as const,
+      gap: '16px'
+    },
+    title: {
+      fontSize: '32px',
+      fontWeight: 'bold',
+      color: isDark ? '#f9fafb' : '#111827',
+      marginBottom: '8px',
+      transition: 'color 0.3s ease'
+    },
+    subtitle: {
+      fontSize: '16px',
+      color: isDark ? '#9ca3af' : '#64748b',
+      transition: 'color 0.3s ease'
+    },
+    headerActions: {
+      display: 'flex',
+      gap: '12px',
+      alignItems: 'center'
+    },
+    button: {
+      background: '#3b82f6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      padding: '12px 20px',
+      fontSize: '14px',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      fontWeight: '500',
+      transition: 'all 0.3s ease'
+    },
+    buttonSecondary: {
+      background: isDark ? '#374151' : '#f3f4f6',
+      color: isDark ? '#d1d5db' : '#374151',
+      border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+      borderRadius: '8px',
+      padding: '12px 20px',
+      fontSize: '14px',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      fontWeight: '500',
+      transition: 'all 0.3s ease'
+    },
+    filters: {
+      background: isDark ? '#1f2937' : 'white',
+      borderRadius: '12px',
+      padding: '20px',
+      marginBottom: '24px',
+      boxShadow: isDark 
+        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' 
+        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+      border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+      display: 'flex',
+      gap: '16px',
+      alignItems: 'center',
+      flexWrap: 'wrap' as const
+    },
+    searchInput: {
+      background: isDark ? '#374151' : '#f9fafb',
+      border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+      borderRadius: '8px',
+      padding: '10px 12px 10px 40px',
+      fontSize: '14px',
+      color: isDark ? '#f9fafb' : '#111827',
+      minWidth: '300px',
+      outline: 'none'
+    },
+    select: {
+      background: isDark ? '#374151' : '#f9fafb',
+      border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+      borderRadius: '8px',
+      padding: '10px 12px',
+      fontSize: '14px',
+      color: isDark ? '#f9fafb' : '#111827',
+      outline: 'none'
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+      gap: '24px'
+    },
+    card: {
+      background: isDark ? '#1f2937' : 'white',
+      borderRadius: '16px',
+      padding: '24px',
+      boxShadow: isDark 
+        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' 
+        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+      border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+      transition: 'all 0.3s ease',
+      cursor: 'pointer'
+    },
+    cardHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '16px'
+    },
+    cardTitle: {
+      fontSize: '20px',
+      fontWeight: 'bold',
+      color: isDark ? '#f9fafb' : '#111827',
+      marginBottom: '4px'
+    },
+    cardSubtitle: {
+      fontSize: '14px',
+      color: isDark ? '#9ca3af' : '#64748b'
+    },
+    statusBadge: {
+      padding: '4px 12px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 'bold',
+      textTransform: 'uppercase' as const
+    },
+    statusAtiva: {
+      background: isDark ? '#14532d' : '#f0fdf4',
+      color: isDark ? '#86efac' : '#16a34a'
+    },
+    statusInativa: {
+      background: isDark ? '#7f1d1d' : '#fef2f2',
+      color: isDark ? '#fca5a5' : '#dc2626'
+    },
+    statusManutencao: {
+      background: isDark ? '#7c2d12' : '#fff7ed',
+      color: isDark ? '#fdba74' : '#ea580c'
+    },
+    cardMetrics: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gap: '12px',
+      marginBottom: '16px'
+    },
+    metric: {
+      textAlign: 'center' as const
+    },
+    metricValue: {
+      fontSize: '18px',
+      fontWeight: 'bold',
+      color: isDark ? '#f9fafb' : '#111827'
+    },
+    metricLabel: {
+      fontSize: '12px',
+      color: isDark ? '#9ca3af' : '#64748b'
+    },
+    cardActions: {
+      display: 'flex',
+      gap: '8px',
+      marginTop: '16px'
+    },
+    actionButton: {
+      background: 'transparent',
+      border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+      borderRadius: '6px',
+      padding: '8px 12px',
+      cursor: 'pointer',
+      color: isDark ? '#d1d5db' : '#4b5563',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '12px',
+      transition: 'all 0.3s ease'
+    },
+    modal: {
+      position: 'fixed' as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000
+    },
+    modalContent: {
+      background: isDark ? '#1f2937' : 'white',
+      borderRadius: '16px',
+      padding: '32px',
+      maxWidth: '800px',
+      width: '90%',
+      maxHeight: '90vh',
+      overflowY: 'auto' as const,
+      border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`
+    },
+    table: {
+      width: '100%',
+      borderCollapse: 'collapse' as const,
+      marginTop: '16px'
+    },
+    tableHeader: {
+      background: isDark ? '#374151' : '#f1f5f9',
+      padding: '12px',
+      textAlign: 'left' as const,
+      fontWeight: 'bold',
+      color: isDark ? '#f9fafb' : '#374151',
+      borderBottom: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}`
+    },
+    tableCell: {
+      padding: '12px',
+      borderBottom: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+      color: isDark ? '#d1d5db' : '#4b5563'
+    }
+  };
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'ativa': return { ...styles.statusBadge, ...styles.statusAtiva };
+      case 'inativa': return { ...styles.statusBadge, ...styles.statusInativa };
+      case 'manutencao': return { ...styles.statusBadge, ...styles.statusManutencao };
+      default: return styles.statusBadge;
+    }
+  };
+
+  const getCargoIcon = (cargo: string) => {
+    switch (cargo) {
+      case 'administrador': return <Shield size={16} color="#ef4444" />;
+      case 'supervisor': return <UserCheck size={16} color="#f59e0b" />;
+      case 'peao': return <User size={16} color="#10b981" />;
+      default: return <User size={16} />;
+    }
+  };
+
+  const fazendasFiltradas = fazendas.filter(fazenda => {
+    const matchStatus = filtroStatus === 'todas' || fazenda.status === filtroStatus;
+    const matchPesquisa = fazenda.nome.toLowerCase().includes(pesquisa.toLowerCase()) ||
+                          fazenda.endereco.cidade.toLowerCase().includes(pesquisa.toLowerCase());
+    return matchStatus && matchPesquisa;
+  });
+
+  const totalFuncionarios = fazendas.reduce((total, fazenda) => total + fazenda.funcionarios.length, 0);
+  const areaTotal = fazendas.reduce((total, fazenda) => total + fazenda.area, 0);
+  const fazendasAtivas = fazendas.filter(f => f.status === 'ativa').length;
+
+  return (
+    <div style={styles.container}>
+      {/* Header */}
+      <div style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Gestão de Fazendas</h1>
+          <p style={styles.subtitle}>
+            Gerencie suas propriedades rurais e funcionários
+          </p>
+        </div>
+        <div style={styles.headerActions}>
+          <button style={styles.buttonSecondary}>
+            <Download size={16} />
+            Exportar
+          </button>
+          <button style={styles.button} onClick={abrirModalNovaFazenda}>
+            <Plus size={16} />
+            Nova Fazenda
+          </button>
+        </div>
+      </div>
+
+      {/* Métricas Resumo */}
+      <div style={styles.filters}>
+        <div style={styles.metric}>
+          <div style={styles.metricValue}>{fazendas.length}</div>
+          <div style={styles.metricLabel}>Total Fazendas</div>
+        </div>
+        <div style={styles.metric}>
+          <div style={styles.metricValue}>{fazendasAtivas}</div>
+          <div style={styles.metricLabel}>Fazendas Ativas</div>
+        </div>
+        <div style={styles.metric}>
+          <div style={styles.metricValue}>{areaTotal.toLocaleString()}</div>
+          <div style={styles.metricLabel}>Hectares Totais</div>
+        </div>
+        <div style={styles.metric}>
+          <div style={styles.metricValue}>{totalFuncionarios}</div>
+          <div style={styles.metricLabel}>Total Funcionários</div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div style={styles.filters}>
+        <div style={{ position: 'relative' }}>
+          <Search size={16} style={{ 
+            position: 'absolute', 
+            left: '12px', 
+            top: '50%', 
+            transform: 'translateY(-50%)',
+            color: isDark ? '#9ca3af' : '#6b7280'
+          }} />
+          <input
+            style={styles.searchInput}
+            type="text"
+            placeholder="Pesquisar fazendas..."
+            value={pesquisa}
+            onChange={(e) => setPesquisa(e.target.value)}
+          />
+        </div>
+        <select
+          style={styles.select}
+          value={filtroStatus}
+          onChange={(e) => setFiltroStatus(e.target.value)}
+        >
+          <option value="todas">Todas as fazendas</option>
+          <option value="ativa">Apenas ativas</option>
+          <option value="inativa">Apenas inativas</option>
+          <option value="manutencao">Em manutenção</option>
+        </select>
+      </div>
+
+      {/* Grid de Fazendas */}
+      <div style={styles.grid}>
+        {fazendasFiltradas.map((fazenda) => (
+          <div 
+            key={fazenda.id} 
+            style={styles.card}
+            onClick={() => setFazendaSelecionada(fazenda)}
+          >
+            <div style={styles.cardHeader}>
+              <div>
+                <h3 style={styles.cardTitle}>{fazenda.nome}</h3>
+                <p style={styles.cardSubtitle}>
+                  {fazenda.endereco.cidade}, {fazenda.endereco.estado}
+                </p>
+              </div>
+              <span style={getStatusStyle(fazenda.status)}>
+                {fazenda.status}
+              </span>
+            </div>
+
+            <div style={styles.cardMetrics}>
+              <div style={styles.metric}>
+                <div style={styles.metricValue}>{fazenda.area}</div>
+                <div style={styles.metricLabel}>Hectares</div>
+              </div>
+              <div style={styles.metric}>
+                <div style={styles.metricValue}>{fazenda.funcionarios.length}</div>
+                <div style={styles.metricLabel}>Funcionários</div>
+              </div>
+              <div style={styles.metric}>
+                <div style={styles.metricValue}>{fazenda.cultivos.length}</div>
+                <div style={styles.metricLabel}>Cultivos</div>
+              </div>
+              <div style={styles.metric}>
+                <div style={styles.metricValue}>
+                  R$ {(fazenda.producaoAnual * 700 / 1000).toFixed(0)}k
+                </div>
+                <div style={styles.metricLabel}>Receita Anual</div>
+              </div>
+            </div>
+
+            <div style={styles.cardActions}>
+              <button 
+                style={styles.actionButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFazendaSelecionada(fazenda);
+                }}
+              >
+                <Users size={14} />
+                Funcionários
+              </button>
+              <button 
+                style={styles.actionButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  editarFazenda(fazenda);
+                }}
+              >
+                <Edit3 size={14} />
+                Editar
+              </button>
+              <button 
+                style={styles.actionButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  alert(`Configurações da fazenda: ${fazenda.nome}`);
+                }}
+              >
+                <Settings size={14} />
+                Config
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal Detalhes da Fazenda */}
+      {fazendaSelecionada && (
+        <div style={styles.modal} onClick={() => setFazendaSelecionada(null)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={styles.cardTitle}>{fazendaSelecionada.nome}</h2>
+              <button 
+                style={styles.button}
+                onClick={() => abrirModalFuncionario(fazendaSelecionada.id)}
+              >
+                <Plus size={16} />
+                Novo Funcionário
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                Informações da Fazenda
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: isDark ? '#9ca3af' : '#64748b' }}>Área</label>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                    {fazendaSelecionada.area} hectares
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: isDark ? '#9ca3af' : '#64748b' }}>Proprietário</label>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                    {fazendaSelecionada.proprietario}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: isDark ? '#9ca3af' : '#64748b' }}>Cultivos</label>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                    {fazendaSelecionada.cultivos.join(', ') || 'Nenhum'}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: isDark ? '#9ca3af' : '#64748b' }}>Produção Anual</label>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                    {fazendaSelecionada.producaoAnual.toLocaleString()} ton
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                Funcionários ({fazendaSelecionada.funcionarios.length})
+              </h3>
+              
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.tableHeader}>Nome</th>
+                    <th style={styles.tableHeader}>Cargo</th>
+                    <th style={styles.tableHeader}>Contratação</th>
+                    <th style={styles.tableHeader}>Salário</th>
+                    <th style={styles.tableHeader}>Permissões</th>
+                    <th style={styles.tableHeader}>Status</th>
+                    <th style={styles.tableHeader}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fazendaSelecionada.funcionarios.map((funcionario) => (
+                    <tr key={funcionario.id}>
+                      <td style={styles.tableCell}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {getCargoIcon(funcionario.cargo)}
+                          <div>
+                            <div style={{ fontWeight: 'bold' }}>{funcionario.nome}</div>
+                            <div style={{ fontSize: '12px', color: isDark ? '#9ca3af' : '#64748b' }}>
+                              {funcionario.email}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={styles.tableCell}>
+                        <span style={{
+                          ...styles.statusBadge,
+                          ...(funcionario.cargo === 'administrador' ? { background: '#ef4444', color: 'white' } :
+                              funcionario.cargo === 'supervisor' ? { background: '#f59e0b', color: 'white' } :
+                              { background: '#10b981', color: 'white' })
+                        }}>
+                          {funcionario.cargo}
+                        </span>
+                      </td>
+                      <td style={styles.tableCell}>
+                        {new Date(funcionario.dataContratacao).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td style={styles.tableCell}>
+                        R$ {funcionario.salario.toLocaleString()}
+                      </td>
+                      <td style={styles.tableCell}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {saoPermissoesCustomizadas(funcionario) ? (
+                            <>
+                              <Settings size={12} color="#f59e0b" />
+                              <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 'bold' }}>
+                                Customizadas
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Shield size={12} color="#10b981" />
+                              <span style={{ fontSize: '12px', color: '#10b981' }}>
+                                Padrão
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td style={styles.tableCell}>
+                        <span style={funcionario.status === 'ativo' ? styles.statusAtiva : styles.statusInativa}>
+                          {funcionario.status === 'ativo' ? (
+                            <><CheckCircle size={12} /> Ativo</>
+                          ) : (
+                            <><AlertCircle size={12} /> Inativo</>
+                          )}
+                        </span>
+                      </td>
+                      <td style={styles.tableCell}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button 
+                            style={styles.actionButton}
+                            onClick={() => editarFuncionario(funcionario)}
+                            title="Editar funcionário"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button 
+                            style={{
+                              ...styles.actionButton,
+                              background: isDark ? '#1e40af' : '#dbeafe',
+                              color: isDark ? '#93c5fd' : '#1e40af'
+                            }}
+                            onClick={() => abrirModalPermissoes(funcionario)}
+                            title="Editar permissões"
+                          >
+                            <Settings size={12} />
+                          </button>
+                          <button 
+                            style={styles.actionButton}
+                            onClick={() => excluirFuncionario(funcionario)}
+                            title="Excluir funcionário"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo Funcionário */}
+      {modalFuncionario && (
+        <div style={styles.modal} onClick={() => setModalFuncionario(false)}>
+          <div style={{...styles.modalContent, maxWidth: '700px'}} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={styles.cardTitle}>
+                {funcionarioEditando ? 'Editar Funcionário' : 'Cadastrar Novo Funcionário'}
+              </h2>
+              <button 
+                style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: isDark ? '#9ca3af' : '#6b7280' }}
+                onClick={() => setModalFuncionario(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form style={{ display: 'grid', gap: '20px' }}>
+              {/* Dados Pessoais */}
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                  Dados Pessoais
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Nome Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={novoFuncionario.nome}
+                      onChange={(e) => setNovoFuncionario({...novoFuncionario, nome: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacao.nome ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="Digite o nome completo"
+                    />
+                    {errosValidacao.nome && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacao.nome}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      CPF *
+                    </label>
+                    <input
+                      type="text"
+                      value={novoFuncionario.cpf}
+                      onChange={(e) => {
+                        const valor = e.target.value.replace(/\D/g, '');
+                        setNovoFuncionario({...novoFuncionario, cpf: formatarCPF(valor)});
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacao.cpf ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                    />
+                    {errosValidacao.cpf && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacao.cpf}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={novoFuncionario.email}
+                      onChange={(e) => setNovoFuncionario({...novoFuncionario, email: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacao.email ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="email@exemplo.com"
+                    />
+                    {errosValidacao.email && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacao.email}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Telefone *
+                    </label>
+                    <input
+                      type="text"
+                      value={novoFuncionario.telefone}
+                      onChange={(e) => {
+                        const valor = e.target.value.replace(/\D/g, '');
+                        setNovoFuncionario({...novoFuncionario, telefone: formatarTelefone(valor)});
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacao.telefone ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="(00) 00000-0000"
+                      maxLength={15}
+                    />
+                    {errosValidacao.telefone && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacao.telefone}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                    Endereço *
+                  </label>
+                  <input
+                    type="text"
+                    value={novoFuncionario.endereco}
+                    onChange={(e) => setNovoFuncionario({...novoFuncionario, endereco: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: `1px solid ${errosValidacao.endereco ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      background: isDark ? '#374151' : 'white',
+                      color: isDark ? '#f9fafb' : '#111827',
+                      outline: 'none'
+                    }}
+                    placeholder="Endereço completo"
+                  />
+                  {errosValidacao.endereco && (
+                    <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                      {errosValidacao.endereco}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Dados Profissionais */}
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                  Dados Profissionais
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Fazenda *
+                    </label>
+                    <select
+                      value={novoFuncionario.fazendaId}
+                      onChange={(e) => setNovoFuncionario({...novoFuncionario, fazendaId: parseInt(e.target.value)})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacao.fazendaId ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value={0}>Selecione uma fazenda</option>
+                      {fazendas.map(fazenda => (
+                        <option key={fazenda.id} value={fazenda.id}>
+                          {fazenda.nome}
+                        </option>
+                      ))}
+                    </select>
+                    {errosValidacao.fazendaId && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacao.fazendaId}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Cargo *
+                    </label>
+                    <select
+                      value={novoFuncionario.cargo}
+                      onChange={(e) => {
+                        const novoCargo = e.target.value as 'administrador' | 'supervisor' | 'peao';
+                        setNovoFuncionario({...novoFuncionario, cargo: novoCargo});
+                        if (!editandoPermissoes) {
+                          setPermissoesCustomizadas(getPermissoesPadrao(novoCargo));
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="peao">Peão</option>
+                      <option value="supervisor">Supervisor</option>
+                      <option value="administrador">Administrador</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Salário (R$) *
+                    </label>
+                    <input
+                      type="number"
+                      value={novoFuncionario.salario || ''}
+                      onChange={(e) => setNovoFuncionario({...novoFuncionario, salario: parseFloat(e.target.value) || 0})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacao.salario ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                    />
+                    {errosValidacao.salario && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacao.salario}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Permissões customizáveis */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                    Permissões do Funcionário
+                  </h3>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => aplicarPermissoesPadrao(novoFuncionario.cargo)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                        borderRadius: '4px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#d1d5db' : '#374151',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Padrão do Cargo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditandoPermissoes(!editandoPermissoes)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        border: `1px solid ${editandoPermissoes ? '#ef4444' : '#10b981'}`,
+                        borderRadius: '4px',
+                        background: editandoPermissoes ? '#ef4444' : '#10b981',
+                        color: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {editandoPermissoes ? 'Cancelar Edição' : 'Editar Permissões'}
+                    </button>
+                  </div>
+                </div>
+                
+                <div style={{ background: isDark ? '#374151' : '#f8fafc', padding: '16px', borderRadius: '8px', border: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}` }}>
+                  <table style={{ width: '100%', fontSize: '14px' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '8px', color: isDark ? '#f9fafb' : '#374151' }}>Módulo</th>
+                        <th style={{ textAlign: 'center', padding: '8px', color: isDark ? '#f9fafb' : '#374151' }}>Visualizar</th>
+                        <th style={{ textAlign: 'center', padding: '8px', color: isDark ? '#f9fafb' : '#374151' }}>Criar</th>
+                        <th style={{ textAlign: 'center', padding: '8px', color: isDark ? '#f9fafb' : '#374151' }}>Editar</th>
+                        <th style={{ textAlign: 'center', padding: '8px', color: isDark ? '#f9fafb' : '#374151' }}>Deletar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {permissoesCustomizadas.map((permissao, index) => (
+                        <tr key={index}>
+                          <td style={{ padding: '8px', color: isDark ? '#d1d5db' : '#4b5563', textTransform: 'capitalize' }}>
+                            {permissao.modulo}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '8px' }}>
+                            {editandoPermissoes ? (
+                              <input
+                                type="checkbox"
+                                checked={permissao.ler}
+                                onChange={() => alternarPermissao(index, 'ler')}
+                                style={{ 
+                                  width: '16px', 
+                                  height: '16px', 
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                              />
+                            ) : (
+                              permissao.ler ? <CheckCircle size={16} color="#10b981" /> : <AlertCircle size={16} color="#ef4444" />
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '8px' }}>
+                            {editandoPermissoes ? (
+                              <input
+                                type="checkbox"
+                                checked={permissao.criar}
+                                onChange={() => alternarPermissao(index, 'criar')}
+                                style={{ 
+                                  width: '16px', 
+                                  height: '16px', 
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                              />
+                            ) : (
+                              permissao.criar ? <CheckCircle size={16} color="#10b981" /> : <AlertCircle size={16} color="#ef4444" />
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '8px' }}>
+                            {editandoPermissoes ? (
+                              <input
+                                type="checkbox"
+                                checked={permissao.editar}
+                                onChange={() => alternarPermissao(index, 'editar')}
+                                style={{ 
+                                  width: '16px', 
+                                  height: '16px', 
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                              />
+                            ) : (
+                              permissao.editar ? <CheckCircle size={16} color="#10b981" /> : <AlertCircle size={16} color="#ef4444" />
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '8px' }}>
+                            {editandoPermissoes ? (
+                              <input
+                                type="checkbox"
+                                checked={permissao.deletar}
+                                onChange={() => alternarPermissao(index, 'deletar')}
+                                style={{ 
+                                  width: '16px', 
+                                  height: '16px', 
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                              />
+                            ) : (
+                              permissao.deletar ? <CheckCircle size={16} color="#10b981" /> : <AlertCircle size={16} color="#ef4444" />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {editandoPermissoes && (
+                    <div style={{ 
+                      marginTop: '12px', 
+                      padding: '12px', 
+                      background: isDark ? '#1f2937' : '#e0f2fe', 
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: isDark ? '#93c5fd' : '#0369a1'
+                    }}>
+                      💡 <strong>Dica:</strong> Clique nas caixas de seleção para personalizar as permissões específicas deste funcionário. Use "Padrão do Cargo" para restaurar as permissões padrão.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  onClick={() => setModalFuncionario(false)}
+                  style={{
+                    ...styles.buttonSecondary,
+                    padding: '12px 24px'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={salvarFuncionario}
+                  style={{
+                    ...styles.button,
+                    padding: '12px 24px'
+                  }}
+                >
+                  {funcionarioEditando ? 'Atualizar Funcionário' : 'Cadastrar Funcionário'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nova/Editar Fazenda */}
+      {modalAberto && (
+        <div style={styles.modal} onClick={() => setModalAberto(false)}>
+          <div style={{...styles.modalContent, maxWidth: '800px'}} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={styles.cardTitle}>
+                {fazendaEditando ? 'Editar Fazenda' : 'Nova Fazenda'}
+              </h2>
+              <button 
+                style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: isDark ? '#9ca3af' : '#6b7280' }}
+                onClick={() => setModalAberto(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form style={{ display: 'grid', gap: '24px' }}>
+              {/* Informações Básicas */}
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                  Informações Básicas
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Nome da Fazenda *
+                    </label>
+                    <input
+                      type="text"
+                      value={novaFazenda.nome}
+                      onChange={(e) => setNovaFazenda({...novaFazenda, nome: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacaoFazenda.nome ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="Digite o nome da fazenda"
+                    />
+                    {errosValidacaoFazenda.nome && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacaoFazenda.nome}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Proprietário *
+                    </label>
+                    <input
+                      type="text"
+                      value={novaFazenda.proprietario}
+                      onChange={(e) => setNovaFazenda({...novaFazenda, proprietario: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacaoFazenda.proprietario ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="Nome do proprietário"
+                    />
+                    {errosValidacaoFazenda.proprietario && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacaoFazenda.proprietario}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Área (hectares) *
+                    </label>
+                    <input
+                      type="number"
+                      value={novaFazenda.area || ''}
+                      onChange={(e) => setNovaFazenda({...novaFazenda, area: parseFloat(e.target.value) || 0})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacaoFazenda.area ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="0.0"
+                      min="0"
+                      step="0.1"
+                    />
+                    {errosValidacaoFazenda.area && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacaoFazenda.area}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Contato */}
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                  Contato
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Telefone
+                    </label>
+                    <input
+                      type="text"
+                      value={novaFazenda.telefone}
+                      onChange={(e) => {
+                        const valor = e.target.value.replace(/\D/g, '');
+                        setNovaFazenda({...novaFazenda, telefone: formatarTelefone(valor)});
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="(00) 00000-0000"
+                      maxLength={15}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={novaFazenda.email}
+                      onChange={(e) => setNovaFazenda({...novaFazenda, email: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${errosValidacaoFazenda.email ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="email@exemplo.com"
+                    />
+                    {errosValidacaoFazenda.email && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                        {errosValidacaoFazenda.email}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Endereço */}
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                  Endereço
+                </h3>
+                
+                <div style={{ display: 'grid', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                      Rua/Endereço
+                    </label>
+                    <input
+                      type="text"
+                      value={novaFazenda.endereco.rua}
+                      onChange={(e) => setNovaFazenda({
+                        ...novaFazenda, 
+                        endereco: {...novaFazenda.endereco, rua: e.target.value}
+                      })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: isDark ? '#374151' : 'white',
+                        color: isDark ? '#f9fafb' : '#111827',
+                        outline: 'none'
+                      }}
+                      placeholder="Rua, número, complemento"
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                        Cidade *
+                      </label>
+                      <input
+                        type="text"
+                        value={novaFazenda.endereco.cidade}
+                        onChange={(e) => setNovaFazenda({
+                          ...novaFazenda, 
+                          endereco: {...novaFazenda.endereco, cidade: e.target.value}
+                        })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          border: `1px solid ${errosValidacaoFazenda.cidade ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          background: isDark ? '#374151' : 'white',
+                          color: isDark ? '#f9fafb' : '#111827',
+                          outline: 'none'
+                        }}
+                        placeholder="Nome da cidade"
+                      />
+                      {errosValidacaoFazenda.cidade && (
+                        <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                          {errosValidacaoFazenda.cidade}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                        Estado *
+                      </label>
+                      <input
+                        type="text"
+                        value={novaFazenda.endereco.estado}
+                        onChange={(e) => setNovaFazenda({
+                          ...novaFazenda, 
+                          endereco: {...novaFazenda.endereco, estado: e.target.value}
+                        })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          border: `1px solid ${errosValidacaoFazenda.estado ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          background: isDark ? '#374151' : 'white',
+                          color: isDark ? '#f9fafb' : '#111827',
+                          outline: 'none'
+                        }}
+                        placeholder="UF"
+                        maxLength={2}
+                      />
+                      {errosValidacaoFazenda.estado && (
+                        <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                          {errosValidacaoFazenda.estado}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px', color: isDark ? '#d1d5db' : '#374151' }}>
+                        CEP *
+                      </label>
+                      <input
+                        type="text"
+                        value={novaFazenda.endereco.cep}
+                        onChange={(e) => setNovaFazenda({
+                          ...novaFazenda, 
+                          endereco: {...novaFazenda.endereco, cep: e.target.value}
+                        })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          border: `1px solid ${errosValidacaoFazenda.cep ? '#ef4444' : (isDark ? '#4b5563' : '#d1d5db')}`,
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          background: isDark ? '#374151' : 'white',
+                          color: isDark ? '#f9fafb' : '#111827',
+                          outline: 'none'
+                        }}
+                        placeholder="00000-000"
+                      />
+                      {errosValidacaoFazenda.cep && (
+                        <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>
+                          {errosValidacaoFazenda.cep}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Atividades da Fazenda */}
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: isDark ? '#f9fafb' : '#111827' }}>
+                  Atividades da Fazenda
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                  <div style={{ 
+                    padding: '16px', 
+                    border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`, 
+                    borderRadius: '8px',
+                    background: isDark ? '#374151' : '#f9fafb'
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={novaFazenda.realizaRacao}
+                        onChange={(e) => setNovaFazenda({...novaFazenda, realizaRacao: e.target.checked})}
+                        style={{ 
+                          width: '18px', 
+                          height: '18px',
+                          accentColor: '#10b981'
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                          🌾 Produção de Ração
+                        </div>
+                        <div style={{ fontSize: '14px', color: isDark ? '#d1d5db' : '#6b7280' }}>
+                          Fazenda produz ração animal
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div style={{ 
+                    padding: '16px', 
+                    border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`, 
+                    borderRadius: '8px',
+                    background: isDark ? '#374151' : '#f9fafb'
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={novaFazenda.realizaNutricao}
+                        onChange={(e) => setNovaFazenda({...novaFazenda, realizaNutricao: e.target.checked})}
+                        style={{ 
+                          width: '18px', 
+                          height: '18px',
+                          accentColor: '#10b981'
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: isDark ? '#f9fafb' : '#111827' }}>
+                          🐄 Nutrição Animal
+                        </div>
+                        <div style={{ fontSize: '14px', color: isDark ? '#d1d5db' : '#6b7280' }}>
+                          Fazenda oferece serviços de nutrição animal
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  onClick={() => setModalAberto(false)}
+                  style={{
+                    ...styles.buttonSecondary,
+                    padding: '12px 24px'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={salvarFazenda}
+                  style={{
+                    ...styles.button,
+                    padding: '12px 24px'
+                  }}
+                >
+                  {fazendaEditando ? 'Atualizar Fazenda' : 'Cadastrar Fazenda'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Permissões */}
+      {modalPermissoes && funcionarioPermissoes && (
+        <div style={styles.modal} onClick={() => setModalPermissoes(false)}>
+          <div style={{...styles.modalContent, maxWidth: '600px'}} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={styles.cardTitle}>
+                Editar Permissões - {funcionarioPermissoes.nome}
+              </h2>
+              <button 
+                style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', color: isDark ? '#9ca3af' : '#6b7280' }}
+                onClick={() => setModalPermissoes(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                {getCargoIcon(funcionarioPermissoes.cargo)}
+                <span style={{ fontSize: '14px', color: isDark ? '#d1d5db' : '#374151' }}>
+                  Cargo: <strong>{funcionarioPermissoes.cargo.charAt(0).toUpperCase() + funcionarioPermissoes.cargo.slice(1)}</strong>
+                </span>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                <button
+                  onClick={() => {
+                    setPermissoesCustomizadas(getPermissoesPadrao(funcionarioPermissoes.cargo));
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '14px',
+                    border: `1px solid ${isDark ? '#4b5563' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    background: isDark ? '#374151' : 'white',
+                    color: isDark ? '#d1d5db' : '#374151',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Restaurar Padrão do Cargo
+                </button>
+              </div>
+            </div>
+
+            <div style={{ background: isDark ? '#374151' : '#f8fafc', padding: '16px', borderRadius: '8px', border: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}` }}>
+              <table style={{ width: '100%', fontSize: '14px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '12px 8px', color: isDark ? '#f9fafb' : '#374151', fontSize: '16px' }}>Módulo</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', color: isDark ? '#f9fafb' : '#374151', fontSize: '16px' }}>Visualizar</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', color: isDark ? '#f9fafb' : '#374151', fontSize: '16px' }}>Criar</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', color: isDark ? '#f9fafb' : '#374151', fontSize: '16px' }}>Editar</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', color: isDark ? '#f9fafb' : '#374151', fontSize: '16px' }}>Deletar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {permissoesCustomizadas.map((permissao, index) => (
+                    <tr key={index} style={{ borderTop: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}` }}>
+                      <td style={{ padding: '12px 8px', color: isDark ? '#d1d5db' : '#4b5563', textTransform: 'capitalize', fontWeight: 'bold' }}>
+                        {permissao.modulo}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={permissao.ler}
+                          onChange={() => alternarPermissao(index, 'ler')}
+                          style={{ 
+                            width: '18px', 
+                            height: '18px', 
+                            cursor: 'pointer',
+                            accentColor: '#10b981'
+                          }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={permissao.criar}
+                          onChange={() => alternarPermissao(index, 'criar')}
+                          style={{ 
+                            width: '18px', 
+                            height: '18px', 
+                            cursor: 'pointer',
+                            accentColor: '#10b981'
+                          }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={permissao.editar}
+                          onChange={() => alternarPermissao(index, 'editar')}
+                          style={{ 
+                            width: '18px', 
+                            height: '18px', 
+                            cursor: 'pointer',
+                            accentColor: '#10b981'
+                          }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={permissao.deletar}
+                          onChange={() => alternarPermissao(index, 'deletar')}
+                          style={{ 
+                            width: '18px', 
+                            height: '18px', 
+                            cursor: 'pointer',
+                            accentColor: '#10b981'
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ 
+              marginTop: '16px', 
+              padding: '12px', 
+              background: isDark ? '#1f2937' : '#e0f2fe', 
+              borderRadius: '6px',
+              fontSize: '14px',
+              color: isDark ? '#93c5fd' : '#0369a1'
+            }}>
+              🛡️ <strong>Administrador:</strong> Você pode personalizar as permissões específicas deste funcionário marcando/desmarcando as caixas acima.
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button
+                onClick={() => setModalPermissoes(false)}
+                style={{
+                  ...styles.buttonSecondary,
+                  padding: '12px 24px'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarPermissoes}
+                style={{
+                  ...styles.button,
+                  padding: '12px 24px'
+                }}
+              >
+                Salvar Permissões
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Fazendas;

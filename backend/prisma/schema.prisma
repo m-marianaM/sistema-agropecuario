@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id              Int             @id @default(autoincrement())
+  nome            String
+  email           String          @unique
+  senha           String
+  cargo           String          // "ADMINISTRADOR", "SUPERVISOR", "PEAO"
+  status          String          @default("ATIVO") // "ATIVO", "INATIVO", "BLOQUEADO"
+  telefone        String?
+  cpf             String?         @unique
+  endereco        String?
+  dataContratacao DateTime        @default(now())
+  salario         Float?
+  especialidade   String?
+  observacoes     String?
+  ultimoLogin     DateTime?
+  
+  // Relacionamentos
+  fazendaId       Int?
+  fazenda         Fazenda?        @relation(fields: [fazendaId], references: [id])
+  permissoes      Permissao[]
+  
+  // Auditoria
+  criadoEm        DateTime        @default(now())
+  atualizadoEm    DateTime        @updatedAt
+  
+  @@map("usuarios")
+}
+
+model Fazenda {
+  id                Int           @id @default(autoincrement())
+  nome              String
+  proprietario      String
+  area              Float
+  status            String        @default("ATIVA") // "ATIVA", "INATIVA", "MANUTENCAO"
+  
+  // Endereço
+  endereco          String?
+  cidade            String
+  estado            String
+  cep               String
+  
+  // Contato
+  telefone          String?
+  email             String?
+  
+  // Atividades
+  realizaRacao      Boolean       @default(false)
+  realizaNutricao   Boolean       @default(false)
+  
+  // Financeiro
+  dataAquisicao     DateTime?
+  valorCompra       Float?
+  producaoAnual     Float?
+  custoOperacional  Float?
+  
+  // Relacionamentos
+  funcionarios      Usuario[]
+  cultivos          Cultivo[]
+  adubagens         Adubagem[]
+  vendas            Venda[]
+  estoques          Estoque[]
+  
+  // Auditoria
+  criadoEm          DateTime      @default(now())
+  atualizadoEm      DateTime      @updatedAt
+  
+  @@map("fazendas")
+}
+
+model Permissao {
+  id              Int     @id @default(autoincrement())
+  modulo          String  // fazendas, funcionarios, cultivos, etc.
+  ler             Boolean @default(false)
+  criar           Boolean @default(false)
+  editar          Boolean @default(false)
+  deletar         Boolean @default(false)
+  gerarRelatorio  Boolean @default(false)
+  exportarDados   Boolean @default(false)
+  
+  // Relacionamentos
+  usuarioId       Int
+  usuario         Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  
+  @@unique([usuarioId, modulo])
+  @@map("permissoes")
+}
+
+model Cultivo {
+  id              Int       @id @default(autoincrement())
+  nome            String
+  variedade       String?
+  areaPlantada    Float
+  dataPlantio     DateTime
+  dataColheita    DateTime?
+  status          String    @default("plantado")
+  producaoTotal   Float?
+  custoTotal      Float?
+  observacoes     String?
+  
+  // Relacionamentos
+  fazendaId       Int
+  fazenda         Fazenda   @relation(fields: [fazendaId], references: [id])
+  
+  // Auditoria
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  
+  @@map("cultivos")
+}
+
+model Adubagem {
+  id              Int       @id @default(autoincrement())
+  tipoAdubo       String
+  quantidade      Float
+  unidade         String
+  areaAplicacao   Float
+  custo           Float
+  dataAplicacao   DateTime
+  observacoes     String?
+  
+  // Relacionamentos
+  fazendaId       Int
+  fazenda         Fazenda   @relation(fields: [fazendaId], references: [id])
+  
+  // Auditoria
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  
+  @@map("adubagens")
+}
+
+model Venda {
+  id              Int       @id @default(autoincrement())
+  produto         String
+  quantidade      Float
+  unidade         String
+  precoUnitario   Float
+  valorTotal      Float
+  comprador       String
+  dataVenda       DateTime
+  status          String    @default("pendente")
+  observacoes     String?
+  
+  // Relacionamentos
+  fazendaId       Int
+  fazenda         Fazenda   @relation(fields: [fazendaId], references: [id])
+  
+  // Auditoria
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  
+  @@map("vendas")
+}
+
+model Estoque {
+  id              Int       @id @default(autoincrement())
+  item            String
+  categoria       String    // racao, fertilizante, semente, etc.
+  quantidade      Float
+  unidade         String
+  valorUnitario   Float
+  valorTotal      Float
+  dataEntrada     DateTime
+  dataValidade    DateTime?
+  fornecedor      String?
+  observacoes     String?
+  
+  // Relacionamentos
+  fazendaId       Int
+  fazenda         Fazenda   @relation(fields: [fazendaId], references: [id])
+  
+  // Auditoria
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  
+  @@map("estoque")
+}

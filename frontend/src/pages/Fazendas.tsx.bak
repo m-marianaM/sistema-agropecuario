@@ -1,0 +1,820 @@
+/**
+ * Página de Gestão de Fazendas - Sistema Agropecuário  
+ * Gestão completa de fazendas e funcionários
+ * Atualizada para usar o contexto compartilhado
+ */
+
+import React, { useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
+import { useFazendas, type Fazenda, type Funcionario, type Permissao } from '../context/FazendasContext';
+import { 
+  MapPin,
+  Plus,
+  Edit3,
+  Trash2,
+  Users,
+  User,
+  Shield,
+  UserCheck,
+  Calendar,
+  Activity,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  AlertCircle,
+  CheckCircle,
+  Settings
+} from 'lucide-react';
+
+// Tipos para novos itens
+interface NovaFazenda {
+  nome: string;
+  endereco: {
+    rua?: string;
+    cidade: string;
+    estado: string;
+    cep: string;
+  };
+  area: number;
+  proprietario: string;
+  telefone: string;
+  email: string;
+  realizaRacao: boolean;
+  realizaNutricao: boolean;
+}
+
+interface NovoFuncionario {
+  nome: string;
+  email: string;
+  cargo: 'administrador' | 'peao' | 'supervisor';
+  salario: number;
+  telefone: string;
+  cpf: string;
+  endereco: string;
+  fazendaId: number;
+}
+
+// Função para gerar permissões padrão localmente
+const getPermissoesPadrao = (cargo: 'administrador' | 'supervisor' | 'peao'): Permissao[] => {
+  const modulos = ['fazendas', 'cultivos', 'adubagem', 'vendas', 'estoque'];
+  
+  return modulos.map(modulo => {
+    switch (cargo) {
+      case 'administrador':
+        return { modulo, ler: true, criar: true, editar: true, deletar: true };
+      case 'supervisor':
+        return { modulo, ler: true, criar: true, editar: true, deletar: false };
+      case 'peao':
+        return { modulo, ler: true, criar: false, editar: false, deletar: false };
+      default:
+        return { modulo, ler: false, criar: false, editar: false, deletar: false };
+    }
+  });
+};
+
+const Fazendas: React.FC = () => {
+  const { isDark } = useTheme();
+  const { fazendas, adicionarFazenda, editarFazenda, removerFazenda } = useFazendas();
+  const [fazendaSelecionada, setFazendaSelecionada] = useState<Fazenda | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [modalFuncionario, setModalFuncionario] = useState(false);
+  const [funcionarioEditando, setFuncionarioEditando] = useState<Funcionario | null>(null);
+  const [editandoPermissoes, setEditandoPermissoes] = useState(false);
+  const [permissoesCustomizadas, setPermissoesCustomizadas] = useState<Permissao[]>([]);
+  const [modalPermissoes, setModalPermissoes] = useState(false);
+  const [novaFazenda, setNovaFazenda] = useState<NovaFazenda>({
+    nome: '',
+    endereco: {
+      cidade: '',
+      estado: '',
+      cep: ''
+    },
+    area: 0,
+    proprietario: '',
+    telefone: '',
+    email: '',
+    realizaRacao: false,
+    realizaNutricao: false
+  });
+  const [errosValidacaoFazenda, setErrosValidacaoFazenda] = useState<{[key: string]: string}>({});
+  const [filtroStatus, setFiltroStatus] = useState<string>('todas');
+  const [pesquisa, setPesquisa] = useState('');
+  const [novoFuncionario, setNovoFuncionario] = useState<NovoFuncionario>({
+    nome: '',
+    email: '',
+    cargo: 'peao',
+    salario: 0,
+    telefone: '',
+    cpf: '',
+    endereco: '',
+    fazendaId: 0
+  });
+  const [errosValidacaoFuncionario, setErrosValidacaoFuncionario] = useState<{[key: string]: string}>({});
+
+  // Estatísticas
+  const totalFazendas = fazendas.length;
+  const fazendasAtivas = fazendas.filter(f => f.status === 'ativa').length;
+  const totalFuncionarios = fazendas.reduce((total, fazenda) => total + fazenda.funcionarios.length, 0);
+  const areaTotal = fazendas.reduce((total, fazenda) => total + fazenda.area, 0);
+
+  // Funções de CRUD - Fazendas
+  const abrirModalNovaFazenda = () => {
+    setNovaFazenda({
+      nome: '',
+      endereco: { cidade: '', estado: '', cep: '' },
+      area: 0,
+      proprietario: '',
+      telefone: '',
+      email: '',
+      realizaRacao: false,
+      realizaNutricao: false
+    });
+    setErrosValidacaoFazenda({});
+    setModalAberto(true);
+  };
+
+  const abrirModalEditarFazenda = (fazenda: Fazenda) => {
+    setNovaFazenda({
+      nome: fazenda.nome,
+      endereco: fazenda.endereco,
+      area: fazenda.area,
+      proprietario: fazenda.proprietario,
+      telefone: fazenda.telefone || '',
+      email: fazenda.email || '',
+      realizaRacao: fazenda.realizaRacao || false,
+      realizaNutricao: fazenda.realizaNutricao || false
+    });
+    setFazendaSelecionada(fazenda);
+    setErrosValidacaoFazenda({});
+    setModalAberto(true);
+  };
+
+  const validarFazenda = (): boolean => {
+    const erros: {[key: string]: string} = {};
+
+    if (!novaFazenda.nome) erros.nome = 'Nome é obrigatório';
+    if (!novaFazenda.proprietario) erros.proprietario = 'Proprietário é obrigatório';
+    if (!novaFazenda.endereco.cidade) erros.cidade = 'Cidade é obrigatória';
+    if (!novaFazenda.endereco.estado) erros.estado = 'Estado é obrigatório';
+    if (!novaFazenda.endereco.cep) erros.cep = 'CEP é obrigatório';
+    if (novaFazenda.area <= 0) erros.area = 'Área deve ser maior que zero';
+
+    setErrosValidacaoFazenda(erros);
+    return Object.keys(erros).length === 0;
+  };
+
+  const salvarFazenda = () => {
+    if (!validarFazenda()) return;
+
+    if (fazendaSelecionada) {
+      // Editando fazenda existente
+      editarFazenda(fazendaSelecionada.id, {
+        nome: novaFazenda.nome,
+        endereco: novaFazenda.endereco,
+        area: novaFazenda.area,
+        proprietario: novaFazenda.proprietario,
+        telefone: novaFazenda.telefone,
+        email: novaFazenda.email,
+        realizaRacao: novaFazenda.realizaRacao,
+        realizaNutricao: novaFazenda.realizaNutricao
+      });
+    } else {
+      // Criando nova fazenda
+      const novaFazendaCompleta: Fazenda = {
+        id: Date.now(),
+        nome: novaFazenda.nome,
+        area: novaFazenda.area,
+        status: 'ativa',
+        cultivos: [],
+        endereco: novaFazenda.endereco,
+        proprietario: novaFazenda.proprietario,
+        dataAquisicao: new Date().toISOString().split('T')[0],
+        valorCompra: 0,
+        producaoAnual: 0,
+        custoOperacional: 0,
+        funcionarios: [],
+        telefone: novaFazenda.telefone,
+        email: novaFazenda.email,
+        realizaRacao: novaFazenda.realizaRacao,
+        realizaNutricao: novaFazenda.realizaNutricao
+      };
+      adicionarFazenda(novaFazendaCompleta);
+    }
+
+    setModalAberto(false);
+    setFazendaSelecionada(null);
+  };
+
+  const deletarFazenda = (id: number) => {
+    if (window.confirm('Tem certeza que deseja excluir esta fazenda?')) {
+      removerFazenda(id);
+      setFazendaSelecionada(null);
+    }
+  };
+
+  // Funções de CRUD - Funcionários
+  const abrirModalNovoFuncionario = (fazendaId: number) => {
+    setNovoFuncionario({
+      nome: '',
+      email: '',
+      cargo: 'peao',
+      salario: 0,
+      telefone: '',
+      cpf: '',
+      endereco: '',
+      fazendaId
+    });
+    setFuncionarioEditando(null);
+    setErrosValidacaoFuncionario({});
+    setPermissoesCustomizadas(getPermissoesPadrao('peao'));
+    setModalFuncionario(true);
+  };
+
+  const abrirModalEditarFuncionario = (funcionario: Funcionario) => {
+    setNovoFuncionario({
+      nome: funcionario.nome,
+      email: funcionario.email,
+      cargo: funcionario.cargo,
+      salario: funcionario.salario,
+      telefone: funcionario.telefone,
+      cpf: funcionario.cpf || '',
+      endereco: funcionario.endereco || '',
+      fazendaId: funcionario.fazendaId
+    });
+    setFuncionarioEditando(funcionario);
+    setPermissoesCustomizadas([...funcionario.permissoes]);
+    setErrosValidacaoFuncionario({});
+    setModalFuncionario(true);
+  };
+
+  const validarFuncionario = (): boolean => {
+    const erros: {[key: string]: string} = {};
+
+    if (!novoFuncionario.nome) erros.nome = 'Nome é obrigatório';
+    if (!novoFuncionario.email) erros.email = 'Email é obrigatório';
+    if (!novoFuncionario.telefone) erros.telefone = 'Telefone é obrigatório';
+    if (!novoFuncionario.cpf) erros.cpf = 'CPF é obrigatório';
+    if (novoFuncionario.salario <= 0) erros.salario = 'Salário deve ser maior que zero';
+
+    setErrosValidacaoFuncionario(erros);
+    return Object.keys(erros).length === 0;
+  };
+
+  const salvarFuncionario = () => {
+    if (!validarFuncionario()) return;
+
+    const fazenda = fazendas.find(f => f.id === novoFuncionario.fazendaId);
+    if (!fazenda) return;
+
+    const novoFuncionarioCompleto: Funcionario = {
+      id: funcionarioEditando?.id || Date.now(),
+      nome: novoFuncionario.nome,
+      email: novoFuncionario.email,
+      cargo: novoFuncionario.cargo,
+      dataContratacao: funcionarioEditando?.dataContratacao || new Date().toISOString().split('T')[0],
+      salario: novoFuncionario.salario,
+      status: funcionarioEditando?.status || 'ativo',
+      telefone: novoFuncionario.telefone,
+      fazendaId: novoFuncionario.fazendaId,
+      cpf: novoFuncionario.cpf,
+      endereco: novoFuncionario.endereco,
+      permissoes: permissoesCustomizadas
+    };
+
+    let funcionariosAtualizados;
+    if (funcionarioEditando) {
+      funcionariosAtualizados = fazenda.funcionarios.map(f => 
+        f.id === funcionarioEditando.id ? novoFuncionarioCompleto : f
+      );
+    } else {
+      funcionariosAtualizados = [...fazenda.funcionarios, novoFuncionarioCompleto];
+    }
+
+    editarFazenda(fazenda.id, { funcionarios: funcionariosAtualizados });
+    setModalFuncionario(false);
+    setFuncionarioEditando(null);
+  };
+
+  const deletarFuncionario = (funcionarioId: number, fazendaId: number) => {
+    if (window.confirm('Tem certeza que deseja excluir este funcionário?')) {
+      const fazenda = fazendas.find(f => f.id === fazendaId);
+      if (fazenda) {
+        const funcionariosAtualizados = fazenda.funcionarios.filter(f => f.id !== funcionarioId);
+        editarFazenda(fazenda.id, { funcionarios: funcionariosAtualizados });
+      }
+    }
+  };
+
+  // Filtragem
+  const fazendasFiltradas = fazendas.filter(fazenda => {
+    const matchStatus = filtroStatus === 'todas' || fazenda.status === filtroStatus;
+    const matchPesquisa = fazenda.nome.toLowerCase().includes(pesquisa.toLowerCase()) ||
+                         fazenda.proprietario.toLowerCase().includes(pesquisa.toLowerCase()) ||
+                         fazenda.endereco.cidade.toLowerCase().includes(pesquisa.toLowerCase());
+    return matchStatus && matchPesquisa;
+  });
+
+  // Atualizar permissões
+  const atualizarPermissao = (index: number, campo: keyof Permissao, valor: boolean) => {
+    const novasPermissoes = [...permissoesCustomizadas];
+    novasPermissoes[index] = { ...novasPermissoes[index], [campo]: valor };
+    setPermissoesCustomizadas(novasPermissoes);
+  };
+
+  const aplicarPermissoesPadrao = (cargo: 'administrador' | 'supervisor' | 'peao') => {
+    setPermissoesCustomizadas(getPermissoesPadrao(cargo));
+    setNovoFuncionario(prev => ({ ...prev, cargo }));
+  };
+
+  // Estilos
+  const styles = {
+    container: {
+      padding: '24px',
+      backgroundColor: isDark ? '#111827' : '#f9fafb',
+      minHeight: '100vh',
+      transition: 'background-color 0.3s ease'
+    },
+    // ... resto dos estilos permanecem iguais ...
+  };
+
+  return (
+    <div style={styles.container}>
+      {/* Header com estatísticas */}
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{
+          fontSize: '32px',
+          fontWeight: 'bold',
+          color: isDark ? '#f9fafb' : '#111827',
+          marginBottom: '8px'
+        }}>
+          Gestão de Fazendas
+        </h1>
+        <p style={{
+          color: isDark ? '#9ca3af' : '#64748b',
+          marginBottom: '24px'
+        }}>
+          Gerencie suas propriedades rurais e equipes
+        </p>
+
+        {/* Cards de estatísticas */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          marginBottom: '24px'
+        }}>
+          <div style={{
+            background: isDark ? '#1f2937' : 'white',
+            padding: '20px',
+            borderRadius: '12px',
+            border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+            boxShadow: isDark ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <MapPin size={24} color="#3b82f6" />
+              <div>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#111827'
+                }}>
+                  {totalFazendas}
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: isDark ? '#9ca3af' : '#64748b'
+                }}>
+                  Total de Fazendas
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            background: isDark ? '#1f2937' : 'white',
+            padding: '20px',
+            borderRadius: '12px',
+            border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+            boxShadow: isDark ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <CheckCircle size={24} color="#10b981" />
+              <div>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#111827'
+                }}>
+                  {fazendasAtivas}
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: isDark ? '#9ca3af' : '#64748b'
+                }}>
+                  Fazendas Ativas
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            background: isDark ? '#1f2937' : 'white',
+            padding: '20px',
+            borderRadius: '12px',
+            border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+            boxShadow: isDark ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Users size={24} color="#f59e0b" />
+              <div>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#111827'
+                }}>
+                  {totalFuncionarios}
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: isDark ? '#9ca3af' : '#64748b'
+                }}>
+                  Total de Funcionários
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            background: isDark ? '#1f2937' : 'white',
+            padding: '20px',
+            borderRadius: '12px',
+            border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+            boxShadow: isDark ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Activity size={24} color="#8b5cf6" />
+              <div>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#111827'
+                }}>
+                  {areaTotal.toLocaleString()} ha
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: isDark ? '#9ca3af' : '#64748b'
+                }}>
+                  Área Total
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Controles de filtro e busca */}
+        <div style={{
+          display: 'flex',
+          gap: '16px',
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={abrirModalNovaFazenda}
+            style={{
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'background-color 0.3s ease'
+            }}
+          >
+            <Plus size={20} />
+            Nova Fazenda
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Search size={20} color={isDark ? '#9ca3af' : '#64748b'} />
+            <input
+              type="text"
+              placeholder="Buscar fazendas..."
+              value={pesquisa}
+              onChange={(e) => setPesquisa(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                border: `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
+                borderRadius: '6px',
+                background: isDark ? '#1f2937' : 'white',
+                color: isDark ? '#f9fafb' : '#111827',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Filter size={20} color={isDark ? '#9ca3af' : '#64748b'} />
+            <select
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                border: `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
+                borderRadius: '6px',
+                background: isDark ? '#1f2937' : 'white',
+                color: isDark ? '#f9fafb' : '#111827',
+                outline: 'none'
+              }}
+            >
+              <option value="todas">Todas</option>
+              <option value="ativa">Ativas</option>
+              <option value="inativa">Inativas</option>
+              <option value="manutencao">Em Manutenção</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de fazendas simplificada - resto do componente continua igual */}
+      <div style={{
+        display: 'grid',
+        gap: '16px'
+      }}>
+        {fazendasFiltradas.map(fazenda => (
+          <div
+            key={fazenda.id}
+            style={{
+              background: isDark ? '#1f2937' : 'white',
+              border: `1px solid ${isDark ? '#374151' : '#e2e8f0'}`,
+              borderRadius: '12px',
+              padding: '20px',
+              boxShadow: isDark ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#111827',
+                  marginBottom: '8px'
+                }}>
+                  {fazenda.nome}
+                </h3>
+                <p style={{
+                  color: isDark ? '#9ca3af' : '#64748b',
+                  marginBottom: '8px'
+                }}>
+                  {fazenda.proprietario} • {fazenda.area} ha • {fazenda.funcionarios.length} funcionários
+                </p>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  background: fazenda.status === 'ativa' ? '#dcfce7' : '#fef3c7',
+                  color: fazenda.status === 'ativa' ? '#16a34a' : '#d97706'
+                }}>
+                  {fazenda.status}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => abrirModalEditarFazenda(fazenda)}
+                  style={{
+                    background: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Edit3 size={16} />
+                </button>
+                <button
+                  onClick={() => deletarFazenda(fazenda.id)}
+                  style={{
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal de fazenda simplificado */}
+      {modalAberto && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: isDark ? '#1f2937' : 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: isDark ? '#f9fafb' : '#111827',
+              marginBottom: '20px'
+            }}>
+              {fazendaSelecionada ? 'Editar Fazenda' : 'Nova Fazenda'}
+            </h2>
+
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#374151',
+                  marginBottom: '4px'
+                }}>
+                  Nome da Fazenda *
+                </label>
+                <input
+                  type="text"
+                  value={novaFazenda.nome}
+                  onChange={(e) => setNovaFazenda(prev => ({ ...prev, nome: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${errosValidacaoFazenda.nome ? '#ef4444' : isDark ? '#374151' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    background: isDark ? '#374151' : 'white',
+                    color: isDark ? '#f9fafb' : '#111827',
+                    outline: 'none'
+                  }}
+                />
+                {errosValidacaoFazenda.nome && (
+                  <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                    {errosValidacaoFazenda.nome}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: isDark ? '#f9fafb' : '#374151',
+                  marginBottom: '4px'
+                }}>
+                  Proprietário *
+                </label>
+                <input
+                  type="text"
+                  value={novaFazenda.proprietario}
+                  onChange={(e) => setNovaFazenda(prev => ({ ...prev, proprietario: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${errosValidacaoFazenda.proprietario ? '#ef4444' : isDark ? '#374151' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    background: isDark ? '#374151' : 'white',
+                    color: isDark ? '#f9fafb' : '#111827',
+                    outline: 'none'
+                  }}
+                />
+                {errosValidacaoFazenda.proprietario && (
+                  <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                    {errosValidacaoFazenda.proprietario}
+                  </p>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    color: isDark ? '#f9fafb' : '#374151',
+                    marginBottom: '4px'
+                  }}>
+                    Área (hectares) *
+                  </label>
+                  <input
+                    type="number"
+                    value={novaFazenda.area}
+                    onChange={(e) => setNovaFazenda(prev => ({ ...prev, area: parseFloat(e.target.value) || 0 }))}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: `1px solid ${errosValidacaoFazenda.area ? '#ef4444' : isDark ? '#374151' : '#d1d5db'}`,
+                      borderRadius: '6px',
+                      background: isDark ? '#374151' : 'white',
+                      color: isDark ? '#f9fafb' : '#111827',
+                      outline: 'none'
+                    }}
+                  />
+                  {errosValidacaoFazenda.area && (
+                    <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                      {errosValidacaoFazenda.area}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    color: isDark ? '#f9fafb' : '#374151',
+                    marginBottom: '4px'
+                  }}>
+                    Telefone
+                  </label>
+                  <input
+                    type="tel"
+                    value={novaFazenda.telefone}
+                    onChange={(e) => setNovaFazenda(prev => ({ ...prev, telefone: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
+                      borderRadius: '6px',
+                      background: isDark ? '#374151' : 'white',
+                      color: isDark ? '#f9fafb' : '#111827',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end',
+              marginTop: '20px'
+            }}>
+              <button
+                onClick={() => {
+                  setModalAberto(false);
+                  setFazendaSelecionada(null);
+                }}
+                style={{
+                  background: 'transparent',
+                  color: isDark ? '#9ca3af' : '#64748b',
+                  border: `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarFazenda}
+                style={{
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Fazendas;

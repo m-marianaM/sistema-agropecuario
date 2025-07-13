@@ -1,0 +1,71 @@
+# Docker Compose para Sistema Agropecuário
+# Configura dois serviços: backend (Node.js) e banco PostgreSQL
+version: '3.8'
+
+services:
+  # Serviço do banco de dados PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: systemagro_db
+    restart: always
+    environment:
+      POSTGRES_DB: systemagro
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - systemagro_network
+
+  # Serviço do backend Node.js
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: systemagro_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres123@db:5432/systemagro
+      JWT_SECRET: systemagro_jwt_secret_2025
+      PORT: 3001
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - systemagro_network
+
+  # Serviço do frontend React (opcional para desenvolvimento)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: systemagro_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:3001
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - systemagro_network
+
+# Volumes para persistência de dados
+volumes:
+  postgres_data:
+
+# Rede interna para comunicação entre containers
+networks:
+  systemagro_network:
+    driver: bridge

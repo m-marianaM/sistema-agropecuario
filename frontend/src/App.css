@@ -1,0 +1,102 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Layout principal do sistema */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  background-color: #F2F2F2; /* Fundo principal cinza claro */
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100vh;
+  position: relative;
+  background-color: #F2F2F2; /* Fundo principal cinza claro */
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 64px 0 0 0; /* Padding-top para compensar o header fixo */
+  min-width: 0;
+  margin-left: 0; /* Será ajustado dinamicamente para desktop */
+  background-color: #F2F2F2; /* Fundo principal cinza claro */
+}
+
+/* Ajuste para desktop - margem esquerda quando sidebar está visível */
+@media (min-width: 1024px) {
+  .main-content {
+    margin-left: 256px; /* Largura da sidebar */
+  }
+}
+
+/* Centralização específica para o Dashboard */
+.main-content > * {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Responsividade para telas menores */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 0 8px;
+  }
+  
+  .main-content > * {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0 4px;
+  }
+}

@@ -1,0 +1,42 @@
+# .dockerignore para Backend
+# Arquivos e pastas a serem ignorados pelo Docker
+
+# Dependências
+node_modules
+npm-debug.log*
+
+# Arquivos de desenvolvimento
+.env
+.env.local
+.env.development
+.env.test
+
+# Logs
+logs
+*.log
+
+# Arquivos de teste
+coverage/
+.nyc_output
+
+# Arquivos temporários
+.tmp/
+temp/
+
+# Arquivos do editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de build (serão gerados no container)
+dist/
+build/
+
+# Arquivos de documentação desnecessários
+README.md
+docs/
