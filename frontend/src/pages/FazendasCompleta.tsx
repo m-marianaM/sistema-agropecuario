@@ -639,7 +639,7 @@ const FazendasCompleta: React.FC = () => {
                       fontSize: '12px',
                       fontWeight: '500'
                     }}>
-                      🌱 Soja
+                      � Soja
                     </span>
                   )}
                 </div>
@@ -1032,7 +1032,7 @@ const FazendasCompleta: React.FC = () => {
                         fontWeight: 'bold',
                         color: isDark ? '#f9fafb' : '#111827'
                       }}>
-                        🌱 Soja
+                        � Soja
                       </div>
                       <div style={{
                         fontSize: '12px',

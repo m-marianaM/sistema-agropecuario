@@ -9,7 +9,7 @@ interface CultivoFormProps {
   isDark?: boolean;
 }
 
-const CultivoForm: React.FC<CultivoFormProps> = ({ 
+const CultivoFormModerno: React.FC<CultivoFormProps> = ({ 
   cultivoEdit, 
   fazendas, 
   onSubmit, 
@@ -368,4 +368,4 @@ const CultivoForm: React.FC<CultivoFormProps> = ({
   );
 };
 
-export default CultivoForm;
+export default CultivoFormModerno;

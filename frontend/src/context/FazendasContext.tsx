@@ -77,6 +77,22 @@ interface Cultivo {
   fertilizanteTipo?: string;
   fertilizanteQuantidade?: number;
   irrigacao?: 'sequeiro' | 'aspersao' | 'gotejamento' | 'pivotcentral';
+  
+  // Novos campos detalhados para gestão agrícola completa
+  espacamentoLinhas?: number; // cm
+  densidadePlantio?: number; // plantas/ha
+  profundidadePlantio?: number; // cm
+  sistemaIrrigacao?: 'Sequeiro' | 'Aspersão' | 'Gotejamento' | 'Pivô Central';
+  preparoSolo?: 'Convencional' | 'Plantio Direto' | 'Cultivo Mínimo';
+  custoProducao?: number;
+  custoSementes?: number;
+  custoFertilizantes?: number;
+  custoDefensivos?: number;
+  custoMaoObra?: number;
+  precoVendaEstimado?: number; // R$/saca
+  certificacaoOrganica?: boolean;
+  analiseSolo?: boolean;
+  seguroAgricola?: boolean;
 }
 
 interface Funcionario {
@@ -523,7 +539,9 @@ export const FazendasProvider: React.FC<FazendasProviderProps> = ({ children }) 
         
         // Tentar carregar cultivos sempre após fazendas
         try {
+          console.log('🌱 Iniciando carregamento de cultivos...');
           await recarregarCultivos();
+          console.log('✅ Cultivos carregados com sucesso!');
         } catch (cultivoError) {
           console.warn('⚠️ Erro ao carregar cultivos:', cultivoError);
         }
@@ -933,7 +951,57 @@ export const FazendasProvider: React.FC<FazendasProviderProps> = ({ children }) 
     
     try {
       const response = await buscarCultivos();
-      if (response && response.data) {
+      console.log('📦 [CULTIVOS] Resposta completa da API:', response);
+      
+      // A API retorna { success: true, data: [...], total: N }
+      if (response && response.success && response.data && Array.isArray(response.data)) {
+        console.log('📋 [CULTIVOS] Dados válidos recebidos:', response.data.length, 'cultivos');
+        
+        const cultivosFormatados = response.data.map((cultivo: any) => ({
+          id: cultivo.id,
+          fazendaId: cultivo.fazendaId,
+          nomeFazenda: cultivo.nomeFazenda || '',
+          talhao: cultivo.talhao || '',
+          responsavelTecnico: cultivo.responsavelTecnico || '',
+          cultura: cultivo.tipoCultura, // Mapear tipoCultura para cultura
+          tipoCultivo: cultivo.variedade || cultivo.tipoCultura,
+          areaHectares: cultivo.areaHectares,
+          dataPlantio: cultivo.dataPlantio,
+          dataColheitaPrevista: cultivo.dataColheitaPrevista,
+          dataColheitaReal: cultivo.dataColheitaReal,
+          status: mapStatusFromAPI(cultivo.status),
+          produtividadeEsperada: cultivo.producaoEstimadaTon ? Math.round(cultivo.producaoEstimadaTon * 1000 / cultivo.areaHectares) : 0,
+          produtividadeReal: cultivo.produtividadeReal,
+          tipoSolo: cultivo.tipoSolo,
+          precipitacaoMm: cultivo.precipitacaoMm,
+          observacoes: cultivo.observacoes || '',
+          adubacoes: cultivo.adubacoes || [],
+          defensivos: cultivo.defensivos || [],
+          criadoEm: cultivo.criadoEm,
+          atualizadoEm: cultivo.atualizadoEm,
+          // Campos de compatibilidade
+          tipoCultura: cultivo.tipoCultura,
+          variedade: cultivo.variedade,
+          producaoEstimadaTon: cultivo.producaoEstimadaTon,
+          fertilizanteTipo: cultivo.fertilizanteTipo,
+          fertilizanteQuantidade: cultivo.fertilizanteQuantidade,
+          irrigacao: cultivo.irrigacao
+        }));
+        
+        console.log('🔄 [CULTIVOS] Formatados para frontend:', cultivosFormatados.length, 'cultivos');
+        console.log('📊 [CULTIVOS] Distribuição por cultura:', {
+          milho: cultivosFormatados.filter((c: any) => c.cultura === 'Milho').length,
+          soja: cultivosFormatados.filter((c: any) => c.cultura === 'Soja').length
+        });
+        
+        setCultivos(cultivosFormatados);
+        
+        // Salvar no localStorage como backup
+        localStorage.setItem('cultivos', JSON.stringify(cultivosFormatados));
+        console.log('💾 [CULTIVOS] Salvos no localStorage. Total:', cultivosFormatados.length);
+        
+      } else if (response && response.data) {
+        // Fallback para resposta antiga
         const cultivosFormatados = response.data.map((cultivo: any) => ({
           ...cultivo,
           tipoCultura: cultivo.tipoCultura,
@@ -944,8 +1012,9 @@ export const FazendasProvider: React.FC<FazendasProviderProps> = ({ children }) 
         
         // Salvar no localStorage como backup
         localStorage.setItem('cultivos', JSON.stringify(cultivosFormatados));
-        console.log('✅ Cultivos carregados da API:', cultivosFormatados);
+        console.log('✅ [CULTIVOS] Carregados da API (formato antigo):', cultivosFormatados);
       } else {
+        console.log('⚠️ [CULTIVOS] Resposta inválida:', response);
         setCultivos([]);
       }
     } catch (error) {

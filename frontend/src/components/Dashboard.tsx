@@ -3,7 +3,7 @@
  * Versão integrada com API que carrega dados reais do banco de dados
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useFazendas } from '../context/FazendasContext';
 import { dashboardAPI, DashboardData } from '../utils/api';
@@ -120,6 +120,7 @@ const Dashboard: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Contextos
   const { isDark } = useTheme();
@@ -143,12 +144,105 @@ const Dashboard: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Função para processar cultivos do contexto e incluir no dashboard
+  const processarCultivosContext = useCallback(() => {
+    console.log('🌱 Processando cultivos do contexto:', cultivos.length);
+    
+    const cultivosMilho = cultivos.filter(c => 
+      c.cultura?.toLowerCase() === 'milho' || 
+      c.tipoCultivo?.toLowerCase().includes('milho')
+    );
+    
+    const cultivosSoja = cultivos.filter(c => 
+      c.cultura?.toLowerCase() === 'soja' || 
+      c.tipoCultivo?.toLowerCase().includes('soja')
+    );
+    
+    console.log('🌽 Cultivos de Milho:', cultivosMilho.length);
+    console.log('🌱 Cultivos de Soja:', cultivosSoja.length);
+
+    // Calcular dados agregados para milho
+    const areaMilho = cultivosMilho.reduce((total, c) => total + (c.areaHectares || 0), 0);
+    const produtividadeEsperadaMilho = cultivosMilho.reduce((total, c) => total + (c.produtividadeEsperada || 0), 0);
+    const produtividadeRealMilho = cultivosMilho.reduce((total, c) => total + (c.produtividadeReal || 0), 0);
+    
+    // Calcular distribuição de status para milho
+    const statusMilho = {
+      plantado: cultivosMilho.filter(c => c.status === 'Plantado').reduce((total, c) => total + (c.areaHectares || 0), 0),
+      crescimento: cultivosMilho.filter(c => c.status === 'Crescimento').reduce((total, c) => total + (c.areaHectares || 0), 0),
+      colhido: cultivosMilho.filter(c => c.status === 'Colhido').reduce((total, c) => total + (c.areaHectares || 0), 0),
+      perdido: 0 // Status não existe no sistema atual
+    };
+
+    // Calcular dados agregados para soja
+    const areaSoja = cultivosSoja.reduce((total, c) => total + (c.areaHectares || 0), 0);
+    const produtividadeEsperadaSoja = cultivosSoja.reduce((total, c) => total + (c.produtividadeEsperada || 0), 0);
+    const produtividadeRealSoja = cultivosSoja.reduce((total, c) => total + (c.produtividadeReal || 0), 0);
+    
+    // Calcular distribuição de status para soja
+    const statusSoja = {
+      plantado: cultivosSoja.filter(c => c.status === 'Plantado').reduce((total, c) => total + (c.areaHectares || 0), 0),
+      crescimento: cultivosSoja.filter(c => c.status === 'Crescimento').reduce((total, c) => total + (c.areaHectares || 0), 0),
+      colhido: cultivosSoja.filter(c => c.status === 'Colhido').reduce((total, c) => total + (c.areaHectares || 0), 0),
+      perdido: 0 // Status não existe no sistema atual
+    };
+
+    // Calcular custos totais
+    const custoTotalMilho = cultivosMilho.reduce((total, c) => {
+      const custo = (c.custoProducao || 0) + (c.custoSementes || 0) + (c.custoFertilizantes || 0) + (c.custoDefensivos || 0) + (c.custoMaoObra || 0);
+      return total + custo;
+    }, 0);
+
+    const custoTotalSoja = cultivosSoja.reduce((total, c) => {
+      const custo = (c.custoProducao || 0) + (c.custoSementes || 0) + (c.custoFertilizantes || 0) + (c.custoDefensivos || 0) + (c.custoMaoObra || 0);
+      return total + custo;
+    }, 0);
+
+    const dadosCultivos = {
+      total: cultivos.length,
+      areaTotal: cultivos.reduce((total, c) => total + (c.areaHectares || 0), 0),
+      producaoEstimada: produtividadeEsperadaMilho + produtividadeEsperadaSoja,
+      producaoRealizada: produtividadeRealMilho + produtividadeRealSoja,
+      porTipo: {
+        milho: {
+          areaPlantada: Math.round(areaMilho),
+          producaoEstimada: Math.round(produtividadeEsperadaMilho),
+          producaoRealizada: Math.round(produtividadeRealMilho),
+          custoTotal: Math.round(custoTotalMilho),
+          statusDistribuicao: {
+            plantado: Math.round(statusMilho.plantado),
+            crescimento: Math.round(statusMilho.crescimento),
+            colhido: Math.round(statusMilho.colhido),
+            perdido: Math.round(statusMilho.perdido)
+          }
+        },
+        soja: {
+          areaPlantada: Math.round(areaSoja),
+          producaoEstimada: Math.round(produtividadeEsperadaSoja),
+          producaoRealizada: Math.round(produtividadeRealSoja),
+          custoTotal: Math.round(custoTotalSoja),
+          statusDistribuicao: {
+            plantado: Math.round(statusSoja.plantado),
+            crescimento: Math.round(statusSoja.crescimento),
+            colhido: Math.round(statusSoja.colhido),
+            perdido: Math.round(statusSoja.perdido)
+          }
+        }
+      }
+    };
+
+    console.log('📊 Dados calculados dos cultivos:', dadosCultivos);
+    return dadosCultivos;
+  }, [cultivos]); // Dependências do useCallback
+
   // Função para calcular dados do dashboard baseados no contexto de fazendas
-  const calcularDadosFromFazendas = (): DashboardData => {
+  const calcularDadosFromFazendas = useCallback((): DashboardData => {
     const totalFazendas = fazendas.length;
     const fazendasAtivas = fazendas.filter(f => f.status === 'ativa').length;
     const areaTotal = fazendas.reduce((total, fazenda) => total + fazenda.area, 0);
-    const areaPlantada = Math.round(areaTotal * 0.85); // Estimativa de 85% plantada
+    const areaPlantada = cultivos.length > 0 
+      ? cultivos.reduce((total, c) => total + (c.areaHectares || 0), 0)
+      : Math.round(areaTotal * 0.85); // Fallback para estimativa de 85% plantada
     const totalFuncionarios = fazendas.reduce((total, fazenda) => total + fazenda.funcionarios.length, 0);
     
     // Calcular métricas financeiras baseadas nos dados das fazendas
@@ -166,11 +260,37 @@ const Dashboard: React.FC = () => {
     // Produtividade média
     const produtividade = areaTotal > 0 ? (areaPlantada / areaTotal) * 100 : 0;
     
-    // Contar cultivos únicos
-    const cultivosUnicos = new Set();
-    fazendas.forEach(fazenda => {
-      fazenda.cultivos.forEach(cultivo => cultivosUnicos.add(cultivo));
-    });
+    // Usar dados reais dos cultivos se disponíveis
+    let cultivosData = {};
+    if (cultivos.length > 0) {
+      const cultivosProcessados = processarCultivosContext();
+      cultivosData = cultivosProcessados.porTipo;
+    } else {
+      // Fallback para cultivos baseados nas fazendas
+      const cultivosUnicos = new Set();
+      fazendas.forEach(fazenda => {
+        fazenda.cultivos.forEach(cultivo => cultivosUnicos.add(cultivo));
+      });
+      
+      cultivosData = cultivosUnicos.size > 0 ? 
+        Object.fromEntries(
+          Array.from(cultivosUnicos).map(cultivo => [
+            cultivo as string,
+            {
+              areaPlantada: Math.round(areaPlantada / cultivosUnicos.size),
+              producaoEstimada: Math.round((areaPlantada / cultivosUnicos.size) * 2.5),
+              producaoRealizada: Math.round((areaPlantada / cultivosUnicos.size) * 2.1),
+              custoTotal: Math.round((areaPlantada / cultivosUnicos.size) * 1800),
+              statusDistribuicao: {
+                plantado: Math.round((areaPlantada / cultivosUnicos.size) * 0.3),
+                crescimento: Math.round((areaPlantada / cultivosUnicos.size) * 0.4),
+                colhido: Math.round((areaPlantada / cultivosUnicos.size) * 0.3),
+                perdido: 0
+              }
+            }
+          ])
+        ) : {};
+    }
     
     return {
       resumo: {
@@ -187,28 +307,15 @@ const Dashboard: React.FC = () => {
         margemLucro: Math.round(margemLucro * 100) / 100
       },
       cultivos: {
-        porTipo: cultivosUnicos.size > 0 ? 
-          Object.fromEntries(
-            Array.from(cultivosUnicos).map(cultivo => [
-              cultivo as string,
-              {
-                areaPlantada: Math.round(areaPlantada / cultivosUnicos.size),
-                producaoEstimada: Math.round((areaPlantada / cultivosUnicos.size) * 2.5),
-                producaoRealizada: Math.round((areaPlantada / cultivosUnicos.size) * 2.1),
-                custoTotal: Math.round((areaPlantada / cultivosUnicos.size) * 1800),
-                statusDistribuicao: {
-                  plantado: Math.round((areaPlantada / cultivosUnicos.size) * 0.3),
-                  crescimento: Math.round((areaPlantada / cultivosUnicos.size) * 0.4),
-                  colhido: Math.round((areaPlantada / cultivosUnicos.size) * 0.3),
-                  perdido: 0
-                }
-              }
-            ])
-          ) : {},
-        total: cultivosUnicos.size,
+        porTipo: cultivosData,
+        total: cultivos.length || 0,
         areaTotal: areaPlantada,
-        producaoEstimada: Math.round(areaPlantada * 2.5),
-        producaoRealizada: Math.round(areaPlantada * 2.1)
+        producaoEstimada: cultivos.length > 0 
+          ? cultivos.reduce((total, c) => total + (c.produtividadeEsperada || 0), 0)
+          : Math.round(areaPlantada * 2.5),
+        producaoRealizada: cultivos.length > 0 
+          ? cultivos.reduce((total, c) => total + (c.produtividadeReal || 0), 0)
+          : Math.round(areaPlantada * 2.1)
       },
       vendas: {
         mensal: {
@@ -218,15 +325,22 @@ const Dashboard: React.FC = () => {
         },
         compradores: fazendas.map((fazenda, index) => ({
           nome: `Comprador ${fazenda.nome}`,
-          valor: Math.round(faturamentoMes / fazendas.length),
-          percentual: Math.round(100 / fazendas.length)
+          valor: Math.round(faturamentoMes / (fazendas.length || 1)),
+          percentual: Math.round(100 / (fazendas.length || 1))
         })),
-        porProduto: Array.from(cultivosUnicos).map(cultivo => ({
-          produto: cultivo as string,
-          quantidade: Math.round(areaPlantada / cultivosUnicos.size * 2.1),
-          valor: Math.round(faturamentoMes / cultivosUnicos.size),
-          margem: 25
-        }))
+        porProduto: cultivos.length > 0 
+          ? [
+              { produto: 'Milho', quantidade: Math.round(areaPlantada * 0.5 * 2.1), valor: Math.round(faturamentoMes * 0.5), margem: 25 },
+              { produto: 'Soja', quantidade: Math.round(areaPlantada * 0.5 * 2.1), valor: Math.round(faturamentoMes * 0.5), margem: 25 }
+            ]
+          : fazendas.length > 0 
+            ? fazendas.slice(0, 3).map(fazenda => ({
+                produto: fazenda.cultivos[0] || 'Milho',
+                quantidade: Math.round(fazenda.area * 2.1),
+                valor: Math.round(faturamentoMes / fazendas.length),
+                margem: 25
+              }))
+            : []
       },
       adubos: {
         gastoMes: Math.round(custoMes * 0.3), // 30% do custo em adubos
@@ -272,46 +386,7 @@ const Dashboard: React.FC = () => {
       ],
       ultima_atualizacao: new Date().toISOString()
     };
-  };
-
-  // Função para processar cultivos do contexto e incluir no dashboard
-  const processarCultivosContext = () => {
-    console.log('🌱 Processando cultivos do contexto:', cultivos.length);
-    
-    const cultivosMilho = cultivos.filter(c => 
-      c.cultura?.toLowerCase() === 'milho' || 
-      c.tipoCultivo?.toLowerCase().includes('milho')
-    );
-    
-    const cultivosSoja = cultivos.filter(c => 
-      c.cultura?.toLowerCase() === 'soja' || 
-      c.tipoCultivo?.toLowerCase().includes('soja')
-    );
-    
-    console.log('🌽 Cultivos de Milho:', cultivosMilho.length);
-    console.log('🌱 Cultivos de Soja:', cultivosSoja.length);
-
-    const dadosCultivos = {
-      total: cultivos.length,
-      areaTotal: cultivos.reduce((total, c) => total + (c.areaHectares || 0), 0),
-      porTipo: {
-        milho: {
-          quantidade: cultivosMilho.length,
-          area: cultivosMilho.reduce((total, c) => total + (c.areaHectares || 0), 0),
-          produtividadeEsperada: cultivosMilho.reduce((total, c) => total + (c.produtividadeEsperada || 0), 0),
-          produtividadeReal: cultivosMilho.reduce((total, c) => total + (c.produtividadeReal || 0), 0)
-        },
-        soja: {
-          quantidade: cultivosSoja.length,
-          area: cultivosSoja.reduce((total, c) => total + (c.areaHectares || 0), 0),
-          produtividadeEsperada: cultivosSoja.reduce((total, c) => total + (c.produtividadeEsperada || 0), 0),
-          produtividadeReal: cultivosSoja.reduce((total, c) => total + (c.produtividadeReal || 0), 0)
-        }
-      }
-    };
-
-    return dadosCultivos;
-  };
+  }, [fazendas, cultivos, processarCultivosContext]); // Dependências do useCallback
 
   // Carregar dados do dashboard via API ou usar dados do contexto de fazendas
   useEffect(() => {
@@ -368,6 +443,36 @@ const Dashboard: React.FC = () => {
       carregarDadosDashboard();
     }
   }, [fazendas, cultivos, fazendasLoading, calcularDadosFromFazendas, processarCultivosContext]); // Recarregar quando fazendas ou cultivos mudarem
+
+  // Função de refresh manual
+  const handleRefresh = useCallback(async () => {
+    console.log('🔄 Dashboard: Refresh manual iniciado');
+    setRefreshing(true);
+    
+    try {
+      // Reprocessar dados localmente com dados atuais
+      if (fazendas.length > 0 || cultivos.length > 0) {
+        const dadosCalculados = calcularDadosFromFazendas();
+        
+        if (cultivos.length > 0) {
+          const cultivosProcessados = processarCultivosContext();
+          dadosCalculados.cultivos = {
+            ...dadosCalculados.cultivos,
+            ...cultivosProcessados
+          };
+        }
+        
+        setDashboardData(dadosCalculados);
+        setError(null);
+        console.log('✅ Dashboard: Refresh concluído com sucesso');
+      }
+    } catch (error) {
+      console.error('❌ Dashboard: Erro no refresh:', error);
+      setError('Erro ao atualizar dados do dashboard');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fazendas, cultivos, calcularDadosFromFazendas, processarCultivosContext]);
 
   // Função para obter dados simulados como fallback
   const getDadosSimulados = (): DashboardData => {
@@ -776,13 +881,52 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div style={styles.container}>
+    <>
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+      <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <h1 style={styles.title}>Dashboard BI - AgroSystem</h1>
-        <p style={styles.subtitle}>
-          Visão completa da sua operação agrícola • Atualizado em tempo real
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div>
+            <h1 style={styles.title}>Dashboard BI - AgroSystem</h1>
+            <p style={styles.subtitle}>
+              Visão completa da sua operação agrícola • Atualizado em tempo real
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: refreshing ? '#9ca3af' : (isDark ? '#3b82f6' : '#2563eb'),
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <RefreshCw 
+              size={16} 
+              style={{ 
+                animation: refreshing ? 'spin 1s linear infinite' : 'none'
+              }} 
+            />
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
         <div style={{ 
           fontSize: '12px', 
           color: isDark ? '#9ca3af' : '#6b7280',
@@ -1201,6 +1345,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

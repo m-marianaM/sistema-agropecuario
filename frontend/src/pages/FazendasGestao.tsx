@@ -651,7 +651,7 @@ const FazendasCompleta: React.FC = () => {
                       fontSize: '12px',
                       fontWeight: '500'
                     }}>
-                      🌱 Soja
+                      � Soja
                     </span>
                   )}
                 </div>
@@ -1083,7 +1083,7 @@ const FazendasCompleta: React.FC = () => {
                       checked={novaFazenda.cultivos.includes('Soja')}
                       onChange={() => toggleCultivo('Soja')}
                     />
-                    <span>🌱 Soja</span>
+                    <span>� Soja</span>
                   </label>
                 </div>
               </div>

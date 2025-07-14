@@ -135,24 +135,55 @@ model Permissao {
 }
 
 model Cultivo {
-  id              Int       @id @default(autoincrement())
-  nome            String
-  variedade       String?
-  areaPlantada    Float
-  dataPlantio     DateTime
-  dataColheita    DateTime?
-  status          String    @default("plantado")
-  producaoTotal   Float?
-  custoTotal      Float?
-  observacoes     String?
+  id                    Int       @id @default(autoincrement())
+  nome                  String
+  variedade             String?
+  areaPlantada          Float
+  dataPlantio           DateTime
+  dataColheita          DateTime?
+  dataColheitaPrevista  DateTime?
+  status                String    @default("plantado")
+  producaoTotal         Float?
+  custoTotal            Float?
+  observacoes           String?
+  
+  // Campos específicos da aplicação
+  cultura               String    // "Milho" ou "Soja"
+  tipoCultivo           String    // "Milho Verão", "Milho Safrinha", "Soja Precoce", "Soja Tardia"
+  areaHectares          Float
+  produtividadeEsperada Float?
+  produtividadeReal     Float?
+  
+  // Dados técnicos
+  espacamentoLinhas     Float?    // cm
+  densidadePlantio      Float?    // plantas/ha
+  profundidadePlantio   Float?    // cm
+  sistemaIrrigacao      String?   // "Sequeiro", "Aspersão", "Gotejamento", "Pivô Central"
+  preparoSolo           String?   // "Convencional", "Plantio Direto", "Cultivo Mínimo"
+  
+  // Custos detalhados
+  custoProducao         Float?    // R$/ha
+  custoSementes         Float?    // R$
+  custoFertilizantes    Float?    // R$
+  custoDefensivos       Float?    // R$
+  custoMaoObra          Float?    // R$
+  precoVendaEstimado    Float?    // R$/saca
+  
+  // Certificações
+  certificacaoOrganica  Boolean   @default(false)
+  analiseSolo           Boolean   @default(false)
+  seguroAgricola        Boolean   @default(false)
+  
+  // Campos de compatibilidade
+  tipoCultura           String?   // Para compatibilidade com sistema atual
   
   // Relacionamentos
-  fazendaId       Int
-  fazenda         Fazenda   @relation(fields: [fazendaId], references: [id])
+  fazendaId             Int
+  fazenda               Fazenda   @relation(fields: [fazendaId], references: [id])
   
   // Auditoria
-  criadoEm        DateTime  @default(now())
-  atualizadoEm    DateTime  @updatedAt
+  criadoEm              DateTime  @default(now())
+  atualizadoEm          DateTime  @updatedAt
   
   @@map("cultivos")
 }
